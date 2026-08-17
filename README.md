@@ -50,14 +50,15 @@ El backend se divide por dominios (`auth`, `users`, `roles`, `students`, `academ
 git clone https://github.com/LeudyRN/SIGMA.git
 cd SIGMA
 pnpm install
-cp .env.example .env
+cp .env.example apps/api/.env
 pnpm prisma:generate
+pnpm create:user
 ```
 
 En PowerShell, copie el entorno con:
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item .env.example apps/api/.env
 ```
 
 ## Variables de entorno
@@ -70,11 +71,19 @@ Copy-Item .env.example .env
 | `DATABASE_USER`          | Usuario de aplicación MySQL                            |
 | `DATABASE_PASSWORD`      | Contraseña del usuario MySQL                           |
 | `DATABASE_NAME`          | Base de datos, normalmente `sigma_ucotesis`            |
-| `JWT_SECRET`             | Firma de tokens de acceso                              |
+| `JWT_ACCESS_SECRET`      | Firma de tokens de acceso                              |
 | `JWT_REFRESH_SECRET`     | Firma independiente de refresh tokens                  |
 | `JWT_ACCESS_EXPIRES_IN`  | Vigencia del access token, por ejemplo `15m`           |
 | `JWT_REFRESH_EXPIRES_IN` | Vigencia del refresh token, por ejemplo `7d`           |
-| `NEXT_PUBLIC_API_URL`    | URL pública del API consumida por Next.js              |
+| `SIGMA_USER_MATRICULA`   | Matrícula usada para iniciar sesión                    |
+| `SIGMA_USER_EMAIL`       | Correo asociado a la cuenta                            |
+| `SIGMA_USER_PASSWORD`    | Contraseña inicial; mínimo 12 caracteres               |
+| `SIGMA_USER_FIRST_NAME`  | Nombre de la cuenta inicial                            |
+| `SIGMA_USER_LAST_NAME`   | Apellido de la cuenta inicial                          |
+| `SIGMA_USER_ROLE`        | Código del rol inicial, por ejemplo `ADMIN`            |
+| `SIGMA_USER_ROLE_NAME`   | Nombre legible del rol inicial                         |
+| `NEXT_PUBLIC_API_URL`    | URL del API; compatibilidad de configuración           |
+| `API_INTERNAL_URL`       | URL interna usada por el proxy seguro de Next.js       |
 | `NEXT_PUBLIC_SITE_URL`   | URL canónica del frontend para metadatos sociales      |
 | `CORS_ORIGIN`            | Origen web exacto autorizado por NestJS                |
 | `API_PORT`               | Puerto del backend; predeterminado `3001`              |
@@ -92,6 +101,7 @@ pnpm prisma:generate
 pnpm prisma:migrate
 pnpm prisma:deploy
 pnpm prisma:studio
+pnpm create:user
 ```
 
 - `prisma:migrate` crea una migración nueva durante desarrollo.
@@ -115,6 +125,8 @@ pnpm dev:api
 | Servicio     | URL                                |
 | ------------ | ---------------------------------- |
 | Frontend     | <http://localhost:3000>            |
+| Login        | <http://localhost:3000/login>      |
+| Mapa modular | <http://localhost:3000/app>        |
 | API          | <http://localhost:3001/api>        |
 | Health check | <http://localhost:3001/api/health> |
 | Swagger      | <http://localhost:3001/api/docs>   |
@@ -141,6 +153,14 @@ pnpm build
 ```
 
 Playwright puede requerir instalar el navegador la primera vez con `pnpm --filter @sigma/web exec playwright install chromium`.
+
+## Autenticación y mapa funcional
+
+El API implementa inicio de sesión por matrícula mediante los endpoints `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout` y `GET /api/auth/me`. Los tokens de acceso y renovación se guardan en cookies `httpOnly`, se firman con secretos independientes y las sesiones renovables quedan registradas y revocables en la base de datos.
+
+Para preparar el primer acceso, configure las variables `SIGMA_USER_*` en su archivo `.env`, aplique las migraciones y ejecute `pnpm create:user`. El comando es idempotente: crea o actualiza la cuenta, su matrícula y el rol indicado, sin incluir ninguna credencial real en el repositorio.
+
+La ruta privada `/app` presenta, después del inicio de sesión, el mapa completo de áreas y módulos planificados. Las fichas marcadas como «planificado» o «base lista» delimitan el trabajo pendiente, aunque todavía no tengan operaciones de negocio conectadas. Las futuras operaciones privadas deberán añadir autorización específica por rol.
 
 ## Estructura del proyecto
 

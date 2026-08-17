@@ -4,6 +4,7 @@ import { APP_GUARD } from '@nestjs/core';
 import { AcademicModule } from './modules/academic/academic.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { EnrollmentsModule } from './modules/enrollments/enrollments.module';
 import { HealthModule } from './modules/health/health.module';
@@ -25,6 +26,7 @@ import { validateEnvironment } from './shared/config/environment';
     }),
     PrismaModule,
     AuthModule,
+    DashboardModule,
     UsersModule,
     RolesModule,
     StudentsModule,

@@ -35,6 +35,7 @@ CREATE TABLE roles (
 CREATE TABLE usuarios (
     id_usuario BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     uuid CHAR(36) NOT NULL,
+    matricula VARCHAR(30) NULL,
     nombres VARCHAR(120) NOT NULL,
     apellidos VARCHAR(120) NOT NULL,
     cedula VARCHAR(20) NULL,
@@ -49,9 +50,12 @@ CREATE TABLE usuarios (
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     deleted_at DATETIME NULL,
+
     CONSTRAINT uq_usuarios_uuid UNIQUE (uuid),
+    CONSTRAINT uq_usuarios_matricula UNIQUE (matricula),
     CONSTRAINT uq_usuarios_cedula UNIQUE (cedula),
     CONSTRAINT uq_usuarios_email UNIQUE (email),
+
     INDEX idx_usuarios_nombre (apellidos, nombres),
     INDEX idx_usuarios_estado (estado)
 ) ENGINE=InnoDB;

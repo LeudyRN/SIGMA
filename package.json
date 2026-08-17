@@ -17,6 +17,7 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "test:e2e": "pnpm --filter @sigma/web test:e2e",
+    "create:user": "pnpm --filter @sigma/api create:user",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "postinstall": "pnpm prisma:generate",
@@ -26,8 +27,14 @@
     "prisma:studio": "pnpm --filter @sigma/api prisma:studio"
   },
   "devDependencies": {
+    "@types/bcrypt": "^6.0.0",
     "concurrently": "^9.2.1",
     "prettier": "^3.6.2",
     "prettier-plugin-tailwindcss": "^0.7.1"
+  },
+  "dependencies": {
+    "@nestjs/config": "^4.0.4",
+    "bcrypt": "^6.0.0",
+    "mysql2": "^3.23.3"
   }
 }

@@ -659,6 +659,7 @@ model usuario_roles {
 model usuarios {
   id_usuario                                         BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
   uuid                                               String                          @unique(map: "uq_usuarios_uuid") @db.Char(36)
+  matricula                                          String?                         @unique(map: "uq_usuarios_matricula") @db.VarChar(30)
   nombres                                            String                          @db.VarChar(120)
   apellidos                                          String                          @db.VarChar(120)
   cedula                                             String?                         @unique(map: "uq_usuarios_cedula") @db.VarChar(20)

@@ -32,6 +32,8 @@ async function bootstrap() {
     )
     .setVersion('0.1.0')
     .addBearerAuth()
+    .addCookieAuth('sigma_access_token')
+    .addCookieAuth('sigma_refresh_token')
     .build();
 
   SwaggerModule.setup(

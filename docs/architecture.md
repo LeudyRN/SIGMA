@@ -25,6 +25,12 @@ Los módulos iniciales son:
 - `payments`: pagos, conciliación y facturación.
 - `notifications`, `audit`: comunicación y trazabilidad.
 
+## Identidad y sesiones
+
+El módulo `auth` valida credenciales con bcrypt y emite tokens JWT de acceso y renovación con secretos independientes. El navegador recibe ambos tokens en cookies `httpOnly`, `sameSite=lax` y `secure` en producción. Cada renovación rota los tokens y actualiza una sesión persistida; cerrar sesión revoca esa sesión.
+
+El frontend consulta `/auth/me` al iniciar el panel y, si el token de acceso expiró, intenta una única renovación antes de mostrar el acceso. El login usa la matrícula del perfil estudiantil como identificador. El catálogo privado de `/app` funciona como mapa de alcance; las acciones y datos sensibles de cada módulo deberán aplicar guards de autenticación y autorización por rol en el API.
+
 ## Ambientes
 
 - Desarrollo: servicios locales en puertos 3000, 3001 y MySQL 3306.
