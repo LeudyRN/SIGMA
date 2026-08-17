@@ -23,9 +23,18 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { type ReactNode, useEffect, useMemo, useState } from 'react';
+import {
+  type ReactNode,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react';
+
 import { apiFetch } from '@/lib/api';
-import { allModules, moduleCatalog } from '@/lib/module-catalog';
+import {
+  allModules,
+  moduleCatalog,
+} from '@/lib/module-catalog';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
 import type { AuthUser } from '@/store/auth-store';
@@ -45,25 +54,56 @@ const groupIcons = {
 
 async function loadCurrentUser(): Promise<AuthUser> {
   let response = await apiFetch('/auth/me');
+
   if (response.status === 401) {
-    const refresh = await apiFetch('/auth/refresh', { method: 'POST' });
-    if (refresh.ok) response = await apiFetch('/auth/me');
+    const refresh = await apiFetch('/auth/refresh', {
+      method: 'POST',
+    });
+
+    if (refresh.ok) {
+      response = await apiFetch('/auth/me');
+    }
   }
-  if (!response.ok) throw new Error('No active session');
+
+  if (!response.ok) {
+    throw new Error('No active session');
+  }
+
   return response.json() as Promise<AuthUser>;
 }
 
-export function AppShell({ children }: { children: ReactNode }) {
+export function AppShell({
+  children,
+}: {
+  children: ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
-  const activeSlug = pathname === '/app' ? 'resumen' : pathname.split('/').at(-1);
-  const activeModule = allModules.find((module) => module.slug === activeSlug);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [expandedGroups, setExpandedGroups] = useState<string[]>([
-    activeModule?.groupKey ?? 'general',
-  ]);
+
+  const activeSlug =
+    pathname === '/app'
+      ? 'resumen'
+      : pathname.split('/').at(-1);
+
+  const activeModule = allModules.find(
+    (module) => module.slug === activeSlug,
+  );
+
+  const [mobileMenuOpen, setMobileMenuOpen] =
+    useState(false);
+
+  const [searchTerm, setSearchTerm] =
+    useState('');
+
+  const [expandedGroups, setExpandedGroups] =
+    useState<string[]>(() =>
+      activeModule?.groupKey
+        ? [activeModule.groupKey]
+        : ['general'],
+    );
+
   const { setUser, user } = useAuthStore();
+
   const session = useQuery({
     queryKey: ['auth', 'me'],
     queryFn: loadCurrentUser,
@@ -72,21 +112,33 @@ export function AppShell({ children }: { children: ReactNode }) {
   });
 
   const visibleGroups = useMemo(() => {
-    const search = searchTerm.trim().toLocaleLowerCase('es');
-    if (!search) return moduleCatalog;
+    const search = searchTerm
+      .trim()
+      .toLocaleLowerCase('es');
+
+    if (!search) {
+      return moduleCatalog;
+    }
 
     return moduleCatalog
       .map((group) => ({
         ...group,
-        modules: group.modules.filter((module) =>
-          `${module.label} ${module.description}`.toLocaleLowerCase('es').includes(search),
+        modules: group.modules.filter(
+          (module) =>
+            `${module.label} ${module.description}`
+              .toLocaleLowerCase('es')
+              .includes(search),
         ),
       }))
-      .filter((group) => group.modules.length > 0);
+      .filter(
+        (group) => group.modules.length > 0,
+      );
   }, [searchTerm]);
 
   useEffect(() => {
-    if (session.data) setUser(session.data);
+    if (session.data) {
+      setUser(session.data);
+    }
   }, [session.data, setUser]);
 
   useEffect(() => {
@@ -97,201 +149,866 @@ export function AppShell({ children }: { children: ReactNode }) {
   }, [router, session.isError, setUser]);
 
   async function logout(): Promise<void> {
-    await apiFetch('/auth/logout', { method: 'POST' }).catch(() => undefined);
+    await apiFetch('/auth/logout', {
+      method: 'POST',
+    }).catch(() => undefined);
+
     setUser(null);
     router.push('/login');
     router.refresh();
   }
 
-  function toggleGroup(groupKey: string): void {
-    setExpandedGroups((groups) =>
-      groups.includes(groupKey) ? groups.filter((key) => key !== groupKey) : [...groups, groupKey],
+  function toggleGroup(
+    groupKey: string,
+  ): void {
+    setExpandedGroups((current) =>
+      current.includes(groupKey)
+        ? current.filter(
+            (key) => key !== groupKey,
+          )
+        : [...current, groupKey],
     );
   }
 
   if (session.isError) {
     return (
-      <main className="bg-surface grid min-h-screen place-items-center px-6">
-        <p className="text-institutional font-semibold">Redirigiendo al inicio de sesión...</p>
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-6">
+        <p className="font-semibold text-slate-900">
+          Redirigiendo al inicio de sesión...
+        </p>
       </main>
     );
   }
 
   if (session.isPending || !user) {
     return (
-      <main className="bg-surface grid min-h-screen place-items-center px-6">
+      <main className="grid min-h-screen place-items-center bg-slate-50 px-6">
         <div className="text-center">
-          <LoaderCircle aria-hidden="true" className="text-primary mx-auto size-8 animate-spin" />
-          <p className="text-institutional mt-4 font-semibold">Validando tu sesión...</p>
+          <LoaderCircle
+            aria-hidden="true"
+            className="mx-auto size-8 animate-spin text-blue-600"
+          />
+
+          <p className="mt-4 text-sm font-semibold text-slate-900">
+            Validando tu sesión...
+          </p>
         </div>
       </main>
     );
   }
 
+  const initials = user.name
+    .split(' ')
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join('')
+    .toUpperCase();
+
   return (
-    <div className="bg-surface min-h-screen lg:grid lg:grid-cols-[19rem_1fr]">
-      {menuOpen && (
+    <div className="min-h-screen bg-[#F5F7FB] lg:grid lg:grid-cols-[21rem_minmax(0,1fr)]">
+      {/* MOBILE OVERLAY */}
+      {mobileMenuOpen && (
         <button
           type="button"
           aria-label="Cerrar menú"
-          className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-[2px] lg:hidden"
-          onClick={() => setMenuOpen(false)}
+          onClick={() =>
+            setMobileMenuOpen(false)
+          }
+          className="fixed inset-0 z-40 bg-slate-950/55 backdrop-blur-sm lg:hidden"
         />
       )}
 
+      {/* =========================================================
+          SIDEBAR
+      ========================================================= */}
       <aside
         className={cn(
-          'bg-institutional fixed inset-y-0 left-0 z-50 flex w-[19rem] -translate-x-full flex-col text-white shadow-2xl transition-transform duration-200 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0 lg:shadow-none',
-          menuOpen && 'translate-x-0',
+          `
+          fixed inset-y-0 left-0 z-50
+          flex w-[21rem]
+          -translate-x-full
+          flex-col
+          overflow-hidden
+
+          bg-[#123A5A]
+          text-white
+
+          shadow-[16px_0_40px_rgba(15,23,42,0.12)]
+
+          transition-transform
+          duration-300
+          ease-out
+
+          lg:sticky
+          lg:top-0
+          lg:h-screen
+          lg:translate-x-0
+          lg:shadow-none
+          `,
+          mobileMenuOpen &&
+            'translate-x-0',
         )}
       >
-        <div className="flex h-20 shrink-0 items-center justify-between border-b border-white/10 px-5">
-          <Link href="/app" className="flex items-center gap-3" onClick={() => setMenuOpen(false)}>
-            <span className="grid size-10 place-items-center rounded-xl bg-white/10 ring-1 ring-white/20">
-              <GraduationCap aria-hidden="true" className="size-6" />
+        {/* =====================================================
+            BRAND
+        ===================================================== */}
+        <div className="flex h-[88px] shrink-0 items-center justify-between px-5">
+          <Link
+            href="/app"
+            onClick={() =>
+              setMobileMenuOpen(false)
+            }
+            className="group flex items-center gap-3.5"
+          >
+            <span
+              className="
+                grid size-11 place-items-center
+                rounded-[14px]
+
+                bg-white/[0.10]
+
+                shadow-[0_6px_18px_rgba(0,0,0,0.08)]
+
+                transition
+                group-hover:bg-white/[0.14]
+              "
+            >
+              <GraduationCap
+                aria-hidden="true"
+                className="size-[22px] text-white"
+              />
             </span>
+
             <span>
-              <span className="block text-lg leading-none font-bold tracking-[0.18em]">SIGMA</span>
-              <span className="mt-1 block text-[0.62rem] tracking-[0.12em] text-blue-100 uppercase">
+              <span
+                className="
+                  block
+                  text-[17px]
+                  leading-none
+                  font-extrabold
+                  tracking-[0.18em]
+                  text-white
+                "
+              >
+                SIGMA
+              </span>
+
+              <span
+                className="
+                  mt-1.5
+                  block
+
+                  text-[10px]
+                  font-semibold
+                  tracking-[0.14em]
+
+                  text-white
+                  uppercase
+                "
+              >
                 Panel institucional
               </span>
             </span>
           </Link>
+
           <button
             type="button"
-            className="grid size-9 place-items-center rounded-lg text-blue-100 hover:bg-white/10 lg:hidden"
-            onClick={() => setMenuOpen(false)}
+            onClick={() =>
+              setMobileMenuOpen(false)
+            }
             aria-label="Cerrar menú"
+            className="
+              grid size-9
+              place-items-center
+
+              rounded-xl
+
+              text-white
+
+              transition
+
+              hover:bg-white/[0.10]
+
+              lg:hidden
+            "
           >
-            <X aria-hidden="true" className="size-5" />
+            <X
+              aria-hidden="true"
+              className="size-5"
+            />
           </button>
         </div>
 
-        <div className="shrink-0 px-4 pt-4">
-          <label htmlFor="module-search" className="sr-only">
-            Buscar un módulo
+        {/* =====================================================
+            SEARCH
+        ===================================================== */}
+        <div className="shrink-0 px-4 pt-2 pb-3">
+          <label
+            htmlFor="module-search"
+            className="
+              mb-2.5
+              block
+              px-1
+
+              text-[10px]
+              font-bold
+              tracking-[0.14em]
+
+              text-white
+              uppercase
+            "
+          >
+            Buscar en SIGMA
           </label>
+
           <div className="relative">
             <Search
               aria-hidden="true"
-              className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-blue-200"
+              className="
+                absolute
+                top-1/2
+                left-3.5
+
+                size-[18px]
+
+                -translate-y-1/2
+
+                text-slate-400
+              "
             />
+
             <input
               id="module-search"
               type="search"
               value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
+              onChange={(event) =>
+                setSearchTerm(
+                  event.target.value,
+                )
+              }
               placeholder="Buscar módulo..."
-              className="h-10 w-full rounded-lg border border-white/15 bg-white/10 pr-3 pl-9 text-sm text-white outline-none placeholder:text-blue-200 focus:border-white/40 focus:ring-2 focus:ring-white/15"
+              className="
+                h-11
+                w-full
+
+                rounded-xl
+
+                border-0
+
+                bg-white
+
+                pr-4
+                pl-11
+
+                text-[13px]
+                font-medium
+                text-slate-900
+
+                shadow-[0_6px_20px_rgba(7,24,41,0.15)]
+
+                outline-none
+
+                transition-all
+
+                placeholder:font-normal
+                placeholder:text-slate-400
+
+                hover:bg-slate-50
+
+                focus:bg-white
+                focus:ring-4
+                focus:ring-blue-300/20
+              "
             />
           </div>
         </div>
 
-        <nav className="mt-3 flex-1 overflow-y-auto px-3 pb-4" aria-label="Módulos de SIGMA">
+        {/* =====================================================
+            NAVIGATION
+        ===================================================== */}
+        <nav
+          aria-label="Módulos de SIGMA"
+          className="
+            mt-1
+            flex-1
+
+            overflow-y-auto
+
+            px-3
+            pb-6
+
+            [scrollbar-width:none]
+            [-ms-overflow-style:none]
+            [&::-webkit-scrollbar]:hidden
+          "
+        >
           {visibleGroups.length === 0 && (
-            <p className="px-3 py-8 text-center text-sm text-blue-200">
-              No encontramos módulos con ese nombre.
-            </p>
+            <div
+              className="
+                mx-1
+                mt-4
+                rounded-2xl
+
+                bg-white/[0.06]
+
+                px-4
+                py-8
+
+                text-center
+              "
+            >
+              <Search
+                aria-hidden="true"
+                className="mx-auto size-6 text-white/50"
+              />
+
+              <p className="mt-3 text-[13px] leading-5 text-white">
+                No encontramos módulos con ese nombre.
+              </p>
+            </div>
           )}
 
-          {visibleGroups.map((group) => {
-            const Icon = groupIcons[group.key as keyof typeof groupIcons] ?? FileBarChart;
-            const expanded =
-              searchTerm.length > 0 ||
-              activeModule?.groupKey === group.key ||
-              expandedGroups.includes(group.key);
-            return (
-              <section key={group.key} className="mb-1">
-                <button
-                  type="button"
-                  onClick={() => toggleGroup(group.key)}
-                  aria-expanded={expanded}
-                  aria-controls={`menu-group-${group.key}`}
-                  className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-blue-100 transition hover:bg-white/10 hover:text-white"
-                >
-                  <Icon aria-hidden="true" className="size-4 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{group.label}</span>
-                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[0.65rem] text-blue-100">
-                    {group.modules.length}
-                  </span>
-                  <ChevronDown
-                    aria-hidden="true"
-                    className={cn('size-4 shrink-0 transition-transform', expanded && 'rotate-180')}
-                  />
-                </button>
+          <div className="space-y-1">
+            {visibleGroups.map(
+              (group) => {
+                const Icon =
+                  groupIcons[
+                    group.key as keyof typeof groupIcons
+                  ] ?? FileBarChart;
 
-                {expanded && (
-                  <div id={`menu-group-${group.key}`} className="mt-0.5 space-y-0.5 pb-2 pl-3">
-                    {group.modules.map((module) => {
-                      const href = module.slug === 'resumen' ? '/app' : `/app/${module.slug}`;
-                      const active = pathname === href;
-                      return (
-                        <Link
-                          key={module.slug}
-                          href={href}
-                          onClick={() => setMenuOpen(false)}
-                          aria-current={active ? 'page' : undefined}
-                          className={cn(
-                            'flex min-h-9 items-center gap-2 rounded-lg border-l-2 border-transparent px-3 py-2 text-[0.82rem] leading-5 text-blue-100 transition hover:bg-white/10 hover:text-white',
-                            active && 'border-white bg-white/15 font-semibold text-white',
-                          )}
-                        >
-                          <span className="min-w-0 flex-1">{module.label}</span>
-                          <ChevronRight
-                            aria-hidden="true"
-                            className="size-3.5 shrink-0 opacity-55"
-                          />
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </section>
-            );
-          })}
+                const expanded =
+                  searchTerm.length > 0 ||
+                  expandedGroups.includes(
+                    group.key,
+                  );
+
+                const groupContainsActive =
+                  group.modules.some(
+                    (module) =>
+                      module.slug ===
+                      activeSlug,
+                  );
+
+                return (
+                  <section
+                    key={group.key}
+                    className="overflow-hidden rounded-xl"
+                  >
+                    {/* GROUP */}
+                    <button
+                      type="button"
+                      aria-expanded={
+                        expanded
+                      }
+                      aria-controls={`menu-group-${group.key}`}
+                      onClick={() =>
+                        toggleGroup(
+                          group.key,
+                        )
+                      }
+                      className={cn(
+                        `
+                        group
+                        relative
+
+                        flex
+                        min-h-[48px]
+                        w-full
+                        items-center
+
+                        gap-3
+
+                        rounded-xl
+
+                        px-3
+                        py-2.5
+
+                        text-left
+
+                        transition-all
+                        duration-150
+
+                        hover:bg-white/[0.08]
+                        `,
+                        groupContainsActive &&
+                          `
+                          bg-white/[0.06]
+                          `,
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          `
+                          grid
+                          size-8
+                          shrink-0
+                          place-items-center
+
+                          rounded-lg
+
+                          bg-white/[0.07]
+
+                          text-white
+
+                          transition-all
+
+                          group-hover:bg-white/[0.12]
+                          `,
+                          groupContainsActive &&
+                            `
+                            bg-white/[0.12]
+                            text-white
+                            `,
+                        )}
+                      >
+                        <Icon
+                          aria-hidden="true"
+                          className="size-[17px]"
+                        />
+                      </span>
+
+                      <span
+                        className="
+                          min-w-0
+                          flex-1
+                          truncate
+
+                          text-[13.5px]
+                          font-semibold
+
+                          text-white
+                        "
+                      >
+                        {group.label}
+                      </span>
+
+                      <span
+                        className="
+                          flex
+                          min-w-7
+                          justify-center
+
+                          rounded-full
+
+                          bg-white/[0.09]
+
+                          px-2
+                          py-[3px]
+
+                          text-[10px]
+                          font-bold
+
+                          text-white
+                        "
+                      >
+                        {
+                          group.modules
+                            .length
+                        }
+                      </span>
+
+                      <ChevronDown
+                        aria-hidden="true"
+                        className={cn(
+                          `
+                          size-[15px]
+                          shrink-0
+
+                          text-white
+
+                          transition-transform
+                          duration-200
+                          `,
+                          expanded &&
+                            'rotate-180',
+                        )}
+                      />
+                    </button>
+
+                    {/* SUBMODULES */}
+                    {expanded && (
+                      <div
+                        id={`menu-group-${group.key}`}
+                        className="
+                          mt-1
+                          space-y-1
+
+                          pb-2
+
+                          pl-[3.65rem]
+                          pr-1
+                        "
+                      >
+                        {group.modules.map(
+                          (module) => {
+                            const href =
+                              module.slug ===
+                              'resumen'
+                                ? '/app'
+                                : `/app/${module.slug}`;
+
+                            const active =
+                              pathname ===
+                              href;
+
+                            return (
+                              <Link
+                                key={
+                                  module.slug
+                                }
+                                href={href}
+                                onClick={() =>
+                                  setMobileMenuOpen(
+                                    false,
+                                  )
+                                }
+                                aria-current={
+                                  active
+                                    ? 'page'
+                                    : undefined
+                                }
+                                className={cn(
+                                  `
+                                  group/item
+
+                                  flex
+                                  min-h-[40px]
+                                  items-center
+
+                                  gap-2.5
+
+                                  rounded-lg
+
+                                  px-3
+                                  py-2
+
+                                  text-[13px]
+                                  leading-5
+                                  font-medium
+
+                                  text-white
+
+                                  transition-all
+                                  duration-150
+
+                                  hover:bg-white/[0.09]
+                                  `,
+                                  active &&
+                                    `
+                                    bg-white/[0.16]
+                                    font-semibold
+                                    text-white
+
+                                    shadow-[0_4px_14px_rgba(5,19,32,0.12)]
+                                    `,
+                                )}
+                              >
+                                <span className="min-w-0 flex-1">
+                                  {
+                                    module.label
+                                  }
+                                </span>
+
+                                <ChevronRight
+                                  aria-hidden="true"
+                                  className={cn(
+                                    `
+                                    size-3.5
+                                    shrink-0
+
+                                    text-white/75
+
+                                    transition-all
+
+                                    group-hover/item:
+                                    translate-x-0.5
+                                    `,
+                                    active &&
+                                      'translate-x-0.5 text-white',
+                                  )}
+                                />
+                              </Link>
+                            );
+                          },
+                        )}
+                      </div>
+                    )}
+                  </section>
+                );
+              },
+            )}
+          </div>
         </nav>
 
-        <div className="shrink-0 border-t border-white/10 p-4">
-          <div className="rounded-xl bg-white/10 p-3 ring-1 ring-white/10">
-            <p className="truncate text-sm font-semibold">{user.name}</p>
-            <p className="mt-1 truncate text-xs text-blue-200">Matrícula {user.matricula}</p>
-            <p className="mt-1 truncate text-xs text-blue-200">
-              {user.roles.map((role) => role.name).join(', ')}
-            </p>
+        {/* =====================================================
+            USER PROFILE
+        ===================================================== */}
+        <div className="shrink-0 bg-[#103551] p-3.5">
+          <div
+            className="
+              rounded-2xl
+
+              bg-white/[0.07]
+
+              p-3.5
+
+              shadow-[0_8px_24px_rgba(3,17,29,0.10)]
+            "
+          >
+            <div className="flex items-center gap-3">
+              <div
+                className="
+                  grid
+                  size-10
+                  shrink-0
+                  place-items-center
+
+                  rounded-xl
+
+                  bg-white/[0.12]
+
+                  text-[12px]
+                  font-bold
+                  text-white
+                "
+              >
+                {initials}
+              </div>
+
+              <div className="min-w-0 flex-1">
+                <p
+                  className="
+                    truncate
+
+                    text-[13px]
+                    font-bold
+
+                    text-white
+                  "
+                >
+                  {user.name}
+                </p>
+
+                <p
+                  className="
+                    mt-0.5
+                    truncate
+
+                    text-[11px]
+                    font-medium
+
+                    text-white
+                  "
+                >
+                  Matrícula{' '}
+                  {user.matricula}
+                </p>
+
+                <p
+                  className="
+                    mt-0.5
+                    truncate
+
+                    text-[10.5px]
+                    font-medium
+
+                    text-white
+                  "
+                >
+                  {user.roles
+                    .map(
+                      (role) =>
+                        role.name,
+                    )
+                    .join(', ')}
+                </p>
+              </div>
+            </div>
+
             <button
               type="button"
               onClick={logout}
-              className="mt-3 flex w-full items-center justify-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm font-medium text-blue-100 hover:bg-white/10 hover:text-white"
+              className="
+                mt-3.5
+
+                flex
+                h-10
+                w-full
+                items-center
+                justify-center
+
+                gap-2
+
+                rounded-xl
+
+                bg-white/[0.11]
+
+                text-[12px]
+                font-bold
+
+                text-white
+
+                shadow-sm
+
+                transition-all
+
+                hover:bg-white/[0.17]
+                hover:shadow-md
+              "
             >
-              <LogOut aria-hidden="true" className="size-4" /> Cerrar sesión
+              <LogOut
+                aria-hidden="true"
+                className="size-[15px] text-white"
+              />
+
+              Cerrar sesión
             </button>
           </div>
         </div>
       </aside>
 
+      {/* =========================================================
+          PAGE AREA
+      ========================================================= */}
       <div className="min-w-0">
-        <header className="border-border bg-background sticky top-0 z-30 flex h-16 items-center gap-3 border-b px-4 sm:px-6 lg:px-8">
+        {/* TOPBAR */}
+        <header
+          className="
+            sticky
+            top-0
+            z-30
+
+            flex
+            h-[74px]
+            items-center
+
+            gap-3
+
+            bg-white/95
+
+            px-4
+
+            shadow-[0_1px_0_rgba(148,163,184,0.18)]
+
+            backdrop-blur
+
+            sm:px-6
+            lg:px-8
+            xl:px-10
+          "
+        >
           <button
             type="button"
-            className="text-institutional grid size-10 shrink-0 place-items-center rounded-lg border lg:hidden"
-            onClick={() => setMenuOpen(true)}
+            onClick={() =>
+              setMobileMenuOpen(true)
+            }
             aria-label="Abrir menú"
+            className="
+              grid
+              size-10
+              shrink-0
+              place-items-center
+
+              rounded-xl
+
+              bg-slate-100
+
+              text-slate-700
+
+              transition
+
+              hover:bg-slate-200
+
+              lg:hidden
+            "
           >
-            <Menu aria-hidden="true" className="size-5" />
+            <Menu
+              aria-hidden="true"
+              className="size-5"
+            />
           </button>
+
           <div className="min-w-0">
-            <p className="text-muted-foreground text-xs font-semibold tracking-wide uppercase">
+            <p
+              className="
+                text-[10px]
+                font-bold
+                tracking-[0.16em]
+
+                text-blue-600
+
+                uppercase
+              "
+            >
               SIGMA
             </p>
-            <p className="text-institutional truncate text-sm font-bold sm:text-base">
-              {activeModule?.label ?? 'Panel institucional'}
+
+            <p
+              className="
+                mt-0.5
+
+                truncate
+
+                text-[16px]
+                font-semibold
+
+                text-slate-900
+              "
+            >
+              {activeModule?.label ??
+                'Panel institucional'}
             </p>
           </div>
-          <span className="bg-warning/10 text-warning ml-auto shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold">
+
+          <span
+            className="
+              ml-auto
+              shrink-0
+
+              rounded-full
+
+              bg-amber-50
+
+              px-3
+              py-1.5
+
+              text-[11px]
+              font-semibold
+
+              text-amber-700
+
+              ring-1
+              ring-amber-200/70
+            "
+          >
             En desarrollo
           </span>
         </header>
-        <main className="px-4 py-6 sm:px-6 sm:py-8 lg:px-8 xl:px-10">{children}</main>
+
+        {/* PAGE CONTENT */}
+        <main
+          className="
+            min-h-[calc(100vh-74px)]
+
+            bg-[#F5F7FB]
+
+            px-4
+            py-7
+
+            sm:px-6
+            sm:py-8
+
+            lg:px-8
+
+            xl:px-10
+            xl:py-9
+          "
+        >
+          <div className="mx-auto w-full max-w-[1540px]">
+            {children}
+          </div>
+        </main>
       </div>
     </div>
   );
