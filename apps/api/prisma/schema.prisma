@@ -1,0 +1,910 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "mysql"
+}
+
+model areas_investigacion {
+  id_area         BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo          String                     @unique(map: "uq_areas_codigo") @db.VarChar(40)
+  nombre          String                     @unique(map: "uq_areas_nombre") @db.VarChar(150)
+  descripcion     String?                    @db.VarChar(500)
+  estado          areas_investigacion_estado @default(ACTIVO)
+  created_at      DateTime                   @default(now()) @db.Timestamp(0)
+  updated_at      DateTime                   @default(now()) @db.Timestamp(0)
+  oferta_areas    oferta_areas[]
+  proyectos_grado proyectos_grado[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model asignaturas {
+  id_asignatura            BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo                   String                     @unique(map: "uq_asignaturas_codigo") @db.VarChar(30)
+  nombre                   String                     @db.VarChar(180)
+  creditos                 Decimal                    @default(0.00) @db.Decimal(5, 2)
+  estado                   asignaturas_estado         @default(ACTIVO)
+  created_at               DateTime                   @default(now()) @db.Timestamp(0)
+  updated_at               DateTime                   @default(now()) @db.Timestamp(0)
+  historial_academico      historial_academico[]
+  plan_estudio_asignaturas plan_estudio_asignaturas[]
+
+  @@index([nombre], map: "idx_asignaturas_nombre")
+}
+
+model auditoria {
+  id_auditoria     BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  id_usuario       BigInt?   @db.UnsignedBigInt
+  accion           String    @db.VarChar(100)
+  entidad          String    @db.VarChar(100)
+  entidad_id       String?   @db.VarChar(100)
+  datos_anteriores Json?
+  datos_nuevos     Json?
+  ip               String?   @db.VarChar(45)
+  user_agent       String?   @db.VarChar(500)
+  request_id       String?   @db.VarChar(100)
+  created_at       DateTime  @default(now()) @db.Timestamp(0)
+  usuarios         usuarios? @relation(fields: [id_usuario], references: [id_usuario], map: "fk_auditoria_usuario")
+
+  @@index([accion, created_at], map: "idx_auditoria_accion_fecha")
+  @@index([entidad, entidad_id], map: "idx_auditoria_entidad")
+  @@index([id_usuario, created_at], map: "idx_auditoria_usuario_fecha")
+}
+
+model carreras {
+  id_carrera       BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  id_escuela       BigInt             @db.UnsignedBigInt
+  codigo           String             @unique(map: "uq_carreras_codigo") @db.VarChar(30)
+  nombre           String             @db.VarChar(150)
+  nivel_academico  String             @default("GRADO") @db.VarChar(60)
+  estado           carreras_estado    @default(ACTIVO)
+  created_at       DateTime           @default(now()) @db.Timestamp(0)
+  updated_at       DateTime           @default(now()) @db.Timestamp(0)
+  escuelas         escuelas           @relation(fields: [id_escuela], references: [id_escuela], map: "fk_carreras_escuela")
+  planes_estudio   planes_estudio[]
+  recinto_carreras recinto_carreras[]
+
+  @@index([id_escuela], map: "idx_carreras_escuela")
+}
+
+model conciliacion_detalles {
+  id_conciliacion     BigInt              @db.UnsignedBigInt
+  id_pago             BigInt              @db.UnsignedBigInt
+  monto_reportado     Decimal?            @db.Decimal(12, 2)
+  coincide            Boolean             @default(false)
+  observacion         String?             @db.VarChar(500)
+  created_at          DateTime            @default(now()) @db.Timestamp(0)
+  conciliaciones_pago conciliaciones_pago @relation(fields: [id_conciliacion], references: [id_conciliacion], onDelete: Cascade, map: "fk_cd_conciliacion")
+  pagos               pagos               @relation(fields: [id_pago], references: [id_pago], map: "fk_cd_pago")
+
+  @@id([id_conciliacion, id_pago])
+  @@index([id_pago], map: "idx_cd_pago")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model conciliaciones_pago {
+  id_conciliacion       BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo                String                     @unique(map: "uq_conciliaciones_codigo") @db.VarChar(60)
+  proveedor             String                     @db.VarChar(80)
+  fecha_desde           DateTime                   @db.DateTime(0)
+  fecha_hasta           DateTime                   @db.DateTime(0)
+  total_registros       Int                        @default(0) @db.UnsignedInt
+  total_monto           Decimal                    @default(0.00) @db.Decimal(14, 2)
+  estado                conciliaciones_pago_estado @default(ABIERTA)
+  procesada_por         BigInt?                    @db.UnsignedBigInt
+  procesada_at          DateTime?                  @db.DateTime(0)
+  created_at            DateTime                   @default(now()) @db.Timestamp(0)
+  conciliacion_detalles conciliacion_detalles[]
+  usuarios              usuarios?                  @relation(fields: [procesada_por], references: [id_usuario], map: "fk_conciliaciones_usuario")
+
+  @@index([procesada_por], map: "fk_conciliaciones_usuario")
+}
+
+model configuraciones {
+  id_configuracion BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  clave            String               @unique(map: "uq_configuraciones_clave") @db.VarChar(120)
+  valor            String?              @db.Text
+  tipo             configuraciones_tipo @default(STRING)
+  descripcion      String?              @db.VarChar(500)
+  es_publica       Boolean              @default(false)
+  updated_by       BigInt?              @db.UnsignedBigInt
+  created_at       DateTime             @default(now()) @db.Timestamp(0)
+  updated_at       DateTime             @default(now()) @db.Timestamp(0)
+  usuarios         usuarios?            @relation(fields: [updated_by], references: [id_usuario], map: "fk_configuraciones_usuario")
+
+  @@index([updated_by], map: "fk_configuraciones_usuario")
+}
+
+model docentes {
+  id_docente        BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  id_usuario        BigInt              @unique(map: "uq_docentes_usuario") @db.UnsignedBigInt
+  codigo_docente    String              @unique(map: "uq_docentes_codigo") @db.VarChar(50)
+  estado            docentes_estado     @default(ACTIVO)
+  created_at        DateTime            @default(now()) @db.Timestamp(0)
+  updated_at        DateTime            @default(now()) @db.Timestamp(0)
+  usuarios          usuarios            @relation(fields: [id_usuario], references: [id_usuario], map: "fk_docentes_usuario")
+  proyecto_docentes proyecto_docentes[]
+}
+
+model documentos_inscripcion {
+  id_documento      BigInt                                   @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion    BigInt                                   @db.UnsignedBigInt
+  id_estudiante     BigInt?                                  @db.UnsignedBigInt
+  tipo_documento    String                                   @db.VarChar(80)
+  nombre_archivo    String                                   @db.VarChar(255)
+  ruta_archivo      String                                   @db.VarChar(500)
+  mime_type         String?                                  @db.VarChar(120)
+  tamano_bytes      BigInt?                                  @db.UnsignedBigInt
+  hash_sha256       String?                                  @db.Char(64)
+  estado_validacion documentos_inscripcion_estado_validacion @default(PENDIENTE)
+  validado_por      BigInt?                                  @db.UnsignedBigInt
+  validado_at       DateTime?                                @db.DateTime(0)
+  observacion       String?                                  @db.VarChar(500)
+  created_at        DateTime                                 @default(now()) @db.Timestamp(0)
+  estudiantes       estudiantes?                             @relation(fields: [id_estudiante], references: [id_estudiante], onDelete: Restrict, map: "fk_documentos_estudiante")
+  inscripciones     inscripciones                            @relation(fields: [id_inscripcion], references: [id_inscripcion], onDelete: Cascade, map: "fk_documentos_inscripcion")
+  usuarios          usuarios?                                @relation(fields: [validado_por], references: [id_usuario], map: "fk_documentos_validado_por")
+
+  @@index([validado_por], map: "fk_documentos_validado_por")
+  @@index([id_estudiante], map: "idx_documentos_estudiante")
+  @@index([id_inscripcion], map: "idx_documentos_inscripcion")
+}
+
+model escuelas {
+  id_escuela  BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  id_facultad BigInt          @db.UnsignedBigInt
+  codigo      String          @unique(map: "uq_escuelas_codigo") @db.VarChar(30)
+  nombre      String          @db.VarChar(150)
+  estado      escuelas_estado @default(ACTIVO)
+  created_at  DateTime        @default(now()) @db.Timestamp(0)
+  updated_at  DateTime        @default(now()) @db.Timestamp(0)
+  carreras    carreras[]
+  facultades  facultades      @relation(fields: [id_facultad], references: [id_facultad], map: "fk_escuelas_facultad")
+
+  @@index([id_facultad], map: "idx_escuelas_facultad")
+}
+
+model estados_inscripcion {
+  id_estado                                                                                           BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo                                                                                              String                          @unique(map: "uq_estados_inscripcion_codigo") @db.VarChar(50)
+  nombre                                                                                              String                          @db.VarChar(100)
+  orden                                                                                               Int                             @unique(map: "uq_estados_inscripcion_orden") @db.UnsignedSmallInt
+  es_final                                                                                            Boolean                         @default(false)
+  estado                                                                                              estados_inscripcion_estado      @default(ACTIVO)
+  historial_estados_inscripcion_historial_estados_inscripcion_id_estado_anteriorToestados_inscripcion historial_estados_inscripcion[] @relation("historial_estados_inscripcion_id_estado_anteriorToestados_inscripcion")
+  historial_estados_inscripcion_historial_estados_inscripcion_id_estado_nuevoToestados_inscripcion    historial_estados_inscripcion[] @relation("historial_estados_inscripcion_id_estado_nuevoToestados_inscripcion")
+  inscripciones                                                                                       inscripciones[]
+}
+
+model estudiante_carreras {
+  id_estudiante_carrera BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  id_estudiante         BigInt                     @db.UnsignedBigInt
+  id_recinto_carrera    BigInt                     @db.UnsignedBigInt
+  id_plan_estudio       BigInt                     @db.UnsignedBigInt
+  fecha_ingreso         DateTime?                  @db.Date
+  fecha_egreso          DateTime?                  @db.Date
+  estado                estudiante_carreras_estado @default(ACTIVA)
+  es_principal          Boolean                    @default(true)
+  created_at            DateTime                   @default(now()) @db.Timestamp(0)
+  updated_at            DateTime                   @default(now()) @db.Timestamp(0)
+  estudiantes           estudiantes                @relation(fields: [id_estudiante], references: [id_estudiante], map: "fk_ec_estudiante")
+  planes_estudio        planes_estudio             @relation(fields: [id_plan_estudio], references: [id_plan_estudio], map: "fk_ec_plan")
+  recinto_carreras      recinto_carreras           @relation(fields: [id_recinto_carrera], references: [id_recinto_carrera], map: "fk_ec_recinto_carrera")
+  historial_academico   historial_academico[]
+
+  @@unique([id_estudiante, id_recinto_carrera, id_plan_estudio], map: "uq_estudiante_carrera_plan")
+  @@index([id_plan_estudio], map: "idx_ec_plan")
+  @@index([id_recinto_carrera], map: "idx_ec_recinto_carrera")
+}
+
+model estudiantes {
+  id_estudiante           BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  id_usuario              BigInt                    @unique(map: "uq_estudiantes_usuario") @db.UnsignedBigInt
+  matricula               String                    @unique(map: "uq_estudiantes_matricula") @db.VarChar(30)
+  fecha_nacimiento        DateTime?                 @db.Date
+  whatsapp                String?                   @db.VarChar(30)
+  created_at              DateTime                  @default(now()) @db.Timestamp(0)
+  updated_at              DateTime                  @default(now()) @db.Timestamp(0)
+  documentos_inscripcion  documentos_inscripcion[]
+  estudiante_carreras     estudiante_carreras[]
+  usuarios                usuarios                  @relation(fields: [id_usuario], references: [id_usuario], map: "fk_estudiantes_usuario")
+  inscripcion_estudiantes inscripcion_estudiantes[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model facturas {
+  id_factura         BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  id_pago            BigInt    @unique(map: "uq_facturas_pago") @db.UnsignedBigInt
+  numero_factura     String    @unique(map: "uq_facturas_numero") @db.VarChar(80)
+  numero_recibo      String    @unique(map: "uq_facturas_recibo") @db.VarChar(80)
+  recinto_nombre     String    @db.VarChar(150)
+  matricula          String    @db.VarChar(30)
+  estudiante_nombre  String    @db.VarChar(250)
+  descripcion        String    @db.VarChar(255)
+  monto              Decimal   @db.Decimal(12, 2)
+  moneda             String    @default("DOP") @db.Char(3)
+  metodo_pago_nombre String    @db.VarChar(100)
+  qr_token           String    @unique(map: "uq_facturas_qr_token") @db.VarChar(255)
+  qr_hash            String    @unique(map: "uq_facturas_qr_hash") @db.Char(64)
+  pdf_url            String?   @db.VarChar(500)
+  fecha_emision      DateTime  @default(now()) @db.DateTime(0)
+  anulada_at         DateTime? @db.DateTime(0)
+  motivo_anulacion   String?   @db.VarChar(500)
+  created_at         DateTime  @default(now()) @db.Timestamp(0)
+  pagos              pagos     @relation(fields: [id_pago], references: [id_pago], map: "fk_facturas_pago")
+
+  @@index([fecha_emision], map: "idx_facturas_fecha")
+  @@index([matricula], map: "idx_facturas_matricula")
+}
+
+model facultades {
+  id_facultad BigInt            @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo      String            @unique(map: "uq_facultades_codigo") @db.VarChar(30)
+  nombre      String            @unique(map: "uq_facultades_nombre") @db.VarChar(150)
+  estado      facultades_estado @default(ACTIVO)
+  created_at  DateTime          @default(now()) @db.Timestamp(0)
+  updated_at  DateTime          @default(now()) @db.Timestamp(0)
+  escuelas    escuelas[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model historial_academico {
+  id_historial          BigInt                                @id @default(autoincrement()) @db.UnsignedBigInt
+  id_estudiante_carrera BigInt                                @db.UnsignedBigInt
+  id_asignatura         BigInt                                @db.UnsignedBigInt
+  periodo_codigo        String                                @db.VarChar(30)
+  calificacion          Decimal?                              @db.Decimal(5, 2)
+  estado_asignatura     historial_academico_estado_asignatura
+  fuente                String?                               @db.VarChar(100)
+  fecha_actualizacion   DateTime                              @default(now()) @db.DateTime(0)
+  created_at            DateTime                              @default(now()) @db.Timestamp(0)
+  updated_at            DateTime                              @default(now()) @db.Timestamp(0)
+  asignaturas           asignaturas                           @relation(fields: [id_asignatura], references: [id_asignatura], map: "fk_historial_asignatura")
+  estudiante_carreras   estudiante_carreras                   @relation(fields: [id_estudiante_carrera], references: [id_estudiante_carrera], map: "fk_historial_ec")
+
+  @@unique([id_estudiante_carrera, id_asignatura, periodo_codigo], map: "uq_historial_registro")
+  @@index([id_asignatura], map: "idx_historial_asignatura")
+  @@index([estado_asignatura], map: "idx_historial_estado")
+}
+
+model historial_estados_inscripcion {
+  id_historial_estado                                                                       BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion                                                                            BigInt               @db.UnsignedBigInt
+  id_estado_anterior                                                                        BigInt?              @db.UnsignedBigInt
+  id_estado_nuevo                                                                           BigInt               @db.UnsignedBigInt
+  cambiado_por                                                                              BigInt?              @db.UnsignedBigInt
+  motivo                                                                                    String?              @db.VarChar(500)
+  created_at                                                                                DateTime             @default(now()) @db.Timestamp(0)
+  estados_inscripcion_historial_estados_inscripcion_id_estado_anteriorToestados_inscripcion estados_inscripcion? @relation("historial_estados_inscripcion_id_estado_anteriorToestados_inscripcion", fields: [id_estado_anterior], references: [id_estado], onDelete: Restrict, map: "fk_hei_estado_anterior")
+  estados_inscripcion_historial_estados_inscripcion_id_estado_nuevoToestados_inscripcion    estados_inscripcion  @relation("historial_estados_inscripcion_id_estado_nuevoToestados_inscripcion", fields: [id_estado_nuevo], references: [id_estado], map: "fk_hei_estado_nuevo")
+  inscripciones                                                                             inscripciones        @relation(fields: [id_inscripcion], references: [id_inscripcion], onDelete: Cascade, map: "fk_hei_inscripcion")
+  usuarios                                                                                  usuarios?            @relation(fields: [cambiado_por], references: [id_usuario], map: "fk_hei_usuario")
+
+  @@index([id_estado_anterior], map: "fk_hei_estado_anterior")
+  @@index([id_estado_nuevo], map: "fk_hei_estado_nuevo")
+  @@index([cambiado_por], map: "fk_hei_usuario")
+  @@index([id_inscripcion, created_at], map: "idx_hei_inscripcion_fecha")
+}
+
+model inscripcion_estudiantes {
+  id_inscripcion    BigInt        @db.UnsignedBigInt
+  id_oferta         BigInt        @db.UnsignedBigInt
+  id_estudiante     BigInt        @db.UnsignedBigInt
+  es_principal      Boolean       @default(false)
+  orden_sustentante Int           @default(1) @db.UnsignedSmallInt
+  created_at        DateTime      @default(now()) @db.Timestamp(0)
+  estudiantes       estudiantes   @relation(fields: [id_estudiante], references: [id_estudiante], map: "fk_ie_estudiante")
+  inscripciones     inscripciones @relation(fields: [id_inscripcion, id_oferta], references: [id_inscripcion, id_oferta], onDelete: Cascade, map: "fk_ie_inscripcion_oferta")
+
+  @@id([id_inscripcion, id_estudiante])
+  @@unique([id_oferta, id_estudiante], map: "uq_inscripcion_estudiante_oferta")
+  @@index([id_inscripcion, id_oferta], map: "fk_ie_inscripcion_oferta")
+  @@index([id_estudiante], map: "idx_ie_estudiante")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model inscripciones {
+  id_inscripcion                BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo                        String                          @unique(map: "uq_inscripciones_codigo") @db.VarChar(60)
+  id_oferta                     BigInt                          @db.UnsignedBigInt
+  id_estado                     BigInt                          @db.UnsignedBigInt
+  monto_aplicado                Decimal                         @db.Decimal(12, 2)
+  moneda                        String                          @default("DOP") @db.Char(3)
+  fecha_solicitud               DateTime                        @default(now()) @db.DateTime(0)
+  fecha_confirmacion            DateTime?                       @db.DateTime(0)
+  fecha_cancelacion             DateTime?                       @db.DateTime(0)
+  motivo_cancelacion            String?                         @db.VarChar(500)
+  observaciones                 String?                         @db.Text
+  version_lock                  Int                             @default(0) @db.UnsignedInt
+  created_at                    DateTime                        @default(now()) @db.Timestamp(0)
+  updated_at                    DateTime                        @default(now()) @db.Timestamp(0)
+  documentos_inscripcion        documentos_inscripcion[]
+  historial_estados_inscripcion historial_estados_inscripcion[]
+  inscripcion_estudiantes       inscripcion_estudiantes[]
+  estados_inscripcion           estados_inscripcion             @relation(fields: [id_estado], references: [id_estado], map: "fk_inscripciones_estado")
+  ofertas                       ofertas                         @relation(fields: [id_oferta], references: [id_oferta], map: "fk_inscripciones_oferta")
+  pagos                         pagos[]
+  proyectos_grado               proyectos_grado?
+  validaciones_requisitos       validaciones_requisitos[]
+
+  @@unique([id_inscripcion, id_oferta], map: "uq_inscripciones_id_oferta")
+  @@index([id_estado], map: "fk_inscripciones_estado")
+  @@index([fecha_solicitud], map: "idx_inscripciones_fecha")
+  @@index([id_oferta, id_estado], map: "idx_inscripciones_oferta_estado")
+}
+
+model metodos_pago {
+  id_metodo_pago BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo         String              @unique(map: "uq_metodos_pago_codigo") @db.VarChar(50)
+  nombre         String              @unique(map: "uq_metodos_pago_nombre") @db.VarChar(100)
+  estado         metodos_pago_estado @default(ACTIVO)
+  pagos          pagos[]
+}
+
+model modalidades {
+  id_modalidad BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo       String             @unique(map: "uq_modalidades_codigo") @db.VarChar(40)
+  nombre       String             @unique(map: "uq_modalidades_nombre") @db.VarChar(100)
+  descripcion  String?            @db.VarChar(255)
+  estado       modalidades_estado @default(ACTIVO)
+  created_at   DateTime           @default(now()) @db.Timestamp(0)
+  updated_at   DateTime           @default(now()) @db.Timestamp(0)
+  ofertas      ofertas[]
+}
+
+model notificaciones {
+  id_notificacion BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  id_usuario      BigInt                      @db.UnsignedBigInt
+  tipo            String                      @db.VarChar(60)
+  titulo          String                      @db.VarChar(180)
+  mensaje         String                      @db.Text
+  url             String?                     @db.VarChar(500)
+  canal           notificaciones_canal        @default(IN_APP)
+  estado_envio    notificaciones_estado_envio @default(PENDIENTE)
+  leida           Boolean                     @default(false)
+  fecha_lectura   DateTime?                   @db.DateTime(0)
+  enviada_at      DateTime?                   @db.DateTime(0)
+  created_at      DateTime                    @default(now()) @db.Timestamp(0)
+  usuarios        usuarios                    @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, map: "fk_notificaciones_usuario")
+
+  @@index([id_usuario, leida, created_at], map: "idx_notificaciones_usuario_leida")
+}
+
+model oferta_areas {
+  id_oferta           BigInt              @db.UnsignedBigInt
+  id_area             BigInt              @db.UnsignedBigInt
+  created_at          DateTime            @default(now()) @db.Timestamp(0)
+  areas_investigacion areas_investigacion @relation(fields: [id_area], references: [id_area], map: "fk_oferta_areas_area")
+  ofertas             ofertas             @relation(fields: [id_oferta], references: [id_oferta], onDelete: Cascade, map: "fk_oferta_areas_oferta")
+
+  @@id([id_oferta, id_area])
+  @@index([id_area], map: "idx_oferta_areas_area")
+}
+
+model oferta_requisitos {
+  id_oferta       BigInt     @db.UnsignedBigInt
+  id_requisito    BigInt     @db.UnsignedBigInt
+  obligatorio     Boolean    @default(true)
+  valor_requerido String?    @db.VarChar(255)
+  created_at      DateTime   @default(now()) @db.Timestamp(0)
+  ofertas         ofertas    @relation(fields: [id_oferta], references: [id_oferta], onDelete: Cascade, map: "fk_or_oferta")
+  requisitos      requisitos @relation(fields: [id_requisito], references: [id_requisito], map: "fk_or_requisito")
+
+  @@id([id_oferta, id_requisito])
+  @@index([id_requisito], map: "idx_or_requisito")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model ofertas {
+  id_oferta                BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo                   String              @unique(map: "uq_ofertas_codigo") @db.VarChar(50)
+  id_recinto_carrera       BigInt              @db.UnsignedBigInt
+  id_modalidad             BigInt              @db.UnsignedBigInt
+  id_periodo               BigInt              @db.UnsignedBigInt
+  titulo                   String              @db.VarChar(200)
+  descripcion              String?             @db.Text
+  fecha_inicio_inscripcion DateTime            @db.DateTime(0)
+  fecha_fin_inscripcion    DateTime            @db.DateTime(0)
+  cupo_total               Int                 @db.UnsignedInt
+  cupo_reservado           Int                 @default(0) @db.UnsignedInt
+  monto                    Decimal             @db.Decimal(12, 2)
+  moneda                   String              @default("DOP") @db.Char(3)
+  estado                   ofertas_estado      @default(BORRADOR)
+  created_by               BigInt              @db.UnsignedBigInt
+  created_at               DateTime            @default(now()) @db.Timestamp(0)
+  updated_at               DateTime            @default(now()) @db.Timestamp(0)
+  inscripciones            inscripciones[]
+  oferta_areas             oferta_areas[]
+  oferta_requisitos        oferta_requisitos[]
+  usuarios                 usuarios            @relation(fields: [created_by], references: [id_usuario], map: "fk_ofertas_created_by")
+  modalidades              modalidades         @relation(fields: [id_modalidad], references: [id_modalidad], map: "fk_ofertas_modalidad")
+  periodos_academicos      periodos_academicos @relation(fields: [id_periodo], references: [id_periodo], map: "fk_ofertas_periodo")
+  recinto_carreras         recinto_carreras    @relation(fields: [id_recinto_carrera], references: [id_recinto_carrera], map: "fk_ofertas_rc")
+
+  @@unique([id_recinto_carrera, id_modalidad, id_periodo, codigo], map: "uq_oferta_contexto")
+  @@index([created_by], map: "fk_ofertas_created_by")
+  @@index([id_modalidad], map: "fk_ofertas_modalidad")
+  @@index([id_periodo], map: "fk_ofertas_periodo")
+  @@index([id_recinto_carrera, id_modalidad, id_periodo, estado], map: "idx_ofertas_busqueda")
+  @@index([fecha_inicio_inscripcion, fecha_fin_inscripcion], map: "idx_ofertas_fechas")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model pagos {
+  id_pago               BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion        BigInt                  @db.UnsignedBigInt
+  id_metodo_pago        BigInt                  @db.UnsignedBigInt
+  referencia            String                  @unique(map: "uq_pagos_referencia") @db.VarChar(100)
+  idempotency_key       String                  @unique(map: "uq_pagos_idempotency") @db.VarChar(120)
+  monto                 Decimal                 @db.Decimal(12, 2)
+  moneda                String                  @default("DOP") @db.Char(3)
+  estado                pagos_estado            @default(CREADO)
+  fecha_pago            DateTime?               @db.DateTime(0)
+  aprobado_at           DateTime?               @db.DateTime(0)
+  rechazado_at          DateTime?               @db.DateTime(0)
+  created_at            DateTime                @default(now()) @db.Timestamp(0)
+  updated_at            DateTime                @default(now()) @db.Timestamp(0)
+  conciliacion_detalles conciliacion_detalles[]
+  facturas              facturas?
+  inscripciones         inscripciones           @relation(fields: [id_inscripcion], references: [id_inscripcion], map: "fk_pagos_inscripcion")
+  metodos_pago          metodos_pago            @relation(fields: [id_metodo_pago], references: [id_metodo_pago], map: "fk_pagos_metodo")
+  transacciones_pago    transacciones_pago[]
+
+  @@index([id_metodo_pago], map: "fk_pagos_metodo")
+  @@index([fecha_pago], map: "idx_pagos_fecha")
+  @@index([id_inscripcion, estado], map: "idx_pagos_inscripcion_estado")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model periodos_academicos {
+  id_periodo   BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo       String                     @unique(map: "uq_periodos_codigo") @db.VarChar(30)
+  nombre       String                     @db.VarChar(100)
+  fecha_inicio DateTime                   @db.Date
+  fecha_fin    DateTime                   @db.Date
+  estado       periodos_academicos_estado @default(PLANIFICADO)
+  created_at   DateTime                   @default(now()) @db.Timestamp(0)
+  updated_at   DateTime                   @default(now()) @db.Timestamp(0)
+  ofertas      ofertas[]
+
+  @@index([estado, fecha_inicio, fecha_fin], map: "idx_periodos_estado_fechas")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model plan_estudio_asignaturas {
+  id_plan_estudio BigInt         @db.UnsignedBigInt
+  id_asignatura   BigInt         @db.UnsignedBigInt
+  semestre        Int?           @db.UnsignedTinyInt
+  obligatoria     Boolean        @default(true)
+  creditos_plan   Decimal?       @db.Decimal(5, 2)
+  created_at      DateTime       @default(now()) @db.Timestamp(0)
+  asignaturas     asignaturas    @relation(fields: [id_asignatura], references: [id_asignatura], map: "fk_pea_asignatura")
+  planes_estudio  planes_estudio @relation(fields: [id_plan_estudio], references: [id_plan_estudio], onDelete: Cascade, map: "fk_pea_plan")
+
+  @@id([id_plan_estudio, id_asignatura])
+  @@index([id_asignatura], map: "idx_pea_asignatura")
+}
+
+model planes_estudio {
+  id_plan_estudio          BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  id_carrera               BigInt                     @db.UnsignedBigInt
+  codigo                   String                     @unique(map: "uq_planes_codigo") @db.VarChar(50)
+  nombre                   String                     @db.VarChar(150)
+  anio_inicio              Int                        @db.Year
+  anio_fin                 Int?                       @db.Year
+  creditos_totales         Decimal?                   @db.Decimal(7, 2)
+  estado                   planes_estudio_estado      @default(ACTIVO)
+  created_at               DateTime                   @default(now()) @db.Timestamp(0)
+  updated_at               DateTime                   @default(now()) @db.Timestamp(0)
+  estudiante_carreras      estudiante_carreras[]
+  plan_estudio_asignaturas plan_estudio_asignaturas[]
+  carreras                 carreras                   @relation(fields: [id_carrera], references: [id_carrera], map: "fk_planes_carrera")
+
+  @@index([id_carrera], map: "idx_planes_carrera")
+}
+
+model proyecto_docentes {
+  id_proyecto           BigInt                   @db.UnsignedBigInt
+  id_docente            BigInt                   @db.UnsignedBigInt
+  id_tipo_participacion BigInt                   @db.UnsignedBigInt
+  fecha_asignacion      DateTime                 @default(now()) @db.DateTime(0)
+  asignado_por          BigInt?                  @db.UnsignedBigInt
+  estado                proyecto_docentes_estado @default(ACTIVO)
+  removed_at            DateTime?                @db.DateTime(0)
+  usuarios              usuarios?                @relation(fields: [asignado_por], references: [id_usuario], map: "fk_pd_asignado_por")
+  docentes              docentes                 @relation(fields: [id_docente], references: [id_docente], map: "fk_pd_docente")
+  proyectos_grado       proyectos_grado          @relation(fields: [id_proyecto], references: [id_proyecto], map: "fk_pd_proyecto")
+  tipos_participacion   tipos_participacion      @relation(fields: [id_tipo_participacion], references: [id_tipo_participacion], map: "fk_pd_tipo")
+
+  @@id([id_proyecto, id_docente, id_tipo_participacion])
+  @@index([asignado_por], map: "fk_pd_asignado_por")
+  @@index([id_docente], map: "idx_pd_docente")
+  @@index([id_tipo_participacion], map: "idx_pd_tipo")
+}
+
+model proyectos_grado {
+  id_proyecto         BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion      BigInt                 @unique(map: "uq_proyectos_inscripcion") @db.UnsignedBigInt
+  id_area             BigInt?                @db.UnsignedBigInt
+  titulo              String?                @db.VarChar(300)
+  descripcion         String?                @db.Text
+  estado              proyectos_grado_estado @default(PENDIENTE)
+  fecha_inicio        DateTime?              @db.Date
+  fecha_finalizacion  DateTime?              @db.Date
+  created_at          DateTime               @default(now()) @db.Timestamp(0)
+  updated_at          DateTime               @default(now()) @db.Timestamp(0)
+  proyecto_docentes   proyecto_docentes[]
+  areas_investigacion areas_investigacion?   @relation(fields: [id_area], references: [id_area], map: "fk_proyectos_area")
+  inscripciones       inscripciones          @relation(fields: [id_inscripcion], references: [id_inscripcion], map: "fk_proyectos_inscripcion")
+
+  @@index([id_area], map: "idx_proyectos_area")
+  @@index([estado], map: "idx_proyectos_estado")
+}
+
+model recinto_carreras {
+  id_recinto_carrera  BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  id_recinto          BigInt                  @db.UnsignedBigInt
+  id_carrera          BigInt                  @db.UnsignedBigInt
+  estado              recinto_carreras_estado @default(ACTIVO)
+  created_at          DateTime                @default(now()) @db.Timestamp(0)
+  updated_at          DateTime                @default(now()) @db.Timestamp(0)
+  estudiante_carreras estudiante_carreras[]
+  ofertas             ofertas[]
+  carreras            carreras                @relation(fields: [id_carrera], references: [id_carrera], map: "fk_rc_carrera")
+  recintos            recintos                @relation(fields: [id_recinto], references: [id_recinto], map: "fk_rc_recinto")
+
+  @@unique([id_recinto, id_carrera], map: "uq_recinto_carrera")
+  @@index([id_carrera], map: "idx_rc_carrera")
+}
+
+model recintos {
+  id_recinto       BigInt             @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo           String             @unique(map: "uq_recintos_codigo") @db.VarChar(30)
+  nombre           String             @unique(map: "uq_recintos_nombre") @db.VarChar(150)
+  direccion        String?            @db.VarChar(255)
+  telefono         String?            @db.VarChar(30)
+  email            String?            @db.VarChar(190)
+  estado           recintos_estado    @default(ACTIVO)
+  created_at       DateTime           @default(now()) @db.Timestamp(0)
+  updated_at       DateTime           @default(now()) @db.Timestamp(0)
+  recinto_carreras recinto_carreras[]
+}
+
+model requisitos {
+  id_requisito            BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo                  String                     @unique(map: "uq_requisitos_codigo") @db.VarChar(60)
+  nombre                  String                     @db.VarChar(150)
+  descripcion             String?                    @db.VarChar(500)
+  tipo_validacion         requisitos_tipo_validacion
+  estado                  requisitos_estado          @default(ACTIVO)
+  created_at              DateTime                   @default(now()) @db.Timestamp(0)
+  updated_at              DateTime                   @default(now()) @db.Timestamp(0)
+  oferta_requisitos       oferta_requisitos[]
+  validaciones_requisitos validaciones_requisitos[]
+}
+
+model roles {
+  id_rol        BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo        String          @unique(map: "uq_roles_codigo") @db.VarChar(50)
+  nombre        String          @unique(map: "uq_roles_nombre") @db.VarChar(100)
+  descripcion   String?         @db.VarChar(255)
+  estado        roles_estado    @default(ACTIVO)
+  created_at    DateTime        @default(now()) @db.Timestamp(0)
+  updated_at    DateTime        @default(now()) @db.Timestamp(0)
+  usuario_roles usuario_roles[]
+}
+
+model sesiones {
+  id_sesion          BigInt    @id @default(autoincrement()) @db.UnsignedBigInt
+  id_usuario         BigInt    @db.UnsignedBigInt
+  token_hash         String    @unique(map: "uq_sesiones_token") @db.Char(64)
+  refresh_token_hash String?   @unique(map: "uq_sesiones_refresh") @db.Char(64)
+  ip                 String?   @db.VarChar(45)
+  user_agent         String?   @db.VarChar(500)
+  expira_at          DateTime  @db.DateTime(0)
+  revocada_at        DateTime? @db.DateTime(0)
+  created_at         DateTime  @default(now()) @db.Timestamp(0)
+  usuarios           usuarios  @relation(fields: [id_usuario], references: [id_usuario], onDelete: Cascade, map: "fk_sesiones_usuario")
+
+  @@index([expira_at], map: "idx_sesiones_expira")
+  @@index([id_usuario], map: "idx_sesiones_usuario")
+}
+
+model tipos_participacion {
+  id_tipo_participacion BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo                String                     @unique(map: "uq_tipos_participacion_codigo") @db.VarChar(50)
+  nombre                String                     @db.VarChar(100)
+  descripcion           String?                    @db.VarChar(255)
+  estado                tipos_participacion_estado @default(ACTIVO)
+  proyecto_docentes     proyecto_docentes[]
+}
+
+model transacciones_pago {
+  id_transaccion           BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
+  id_pago                  BigInt                    @db.UnsignedBigInt
+  proveedor                String                    @db.VarChar(80)
+  proveedor_transaccion_id String?                   @db.VarChar(150)
+  tipo                     transacciones_pago_tipo   @default(VENTA)
+  estado                   transacciones_pago_estado
+  authorization_code       String?                   @db.VarChar(100)
+  response_code            String?                   @db.VarChar(50)
+  response_message         String?                   @db.VarChar(500)
+  request_reference        String?                   @db.VarChar(150)
+  request_payload          Json?
+  response_payload         Json?
+  created_at               DateTime                  @default(now()) @db.Timestamp(0)
+  pagos                    pagos                     @relation(fields: [id_pago], references: [id_pago], map: "fk_tx_pago")
+
+  @@unique([proveedor, proveedor_transaccion_id], map: "uq_tx_proveedor_id")
+  @@index([id_pago, created_at], map: "idx_tx_pago_fecha")
+}
+
+model usuario_roles {
+  id_usuario                                    BigInt    @db.UnsignedBigInt
+  id_rol                                        BigInt    @db.UnsignedBigInt
+  asignado_por                                  BigInt?   @db.UnsignedBigInt
+  created_at                                    DateTime  @default(now()) @db.Timestamp(0)
+  usuarios_usuario_roles_asignado_porTousuarios usuarios? @relation("usuario_roles_asignado_porTousuarios", fields: [asignado_por], references: [id_usuario], map: "fk_usuario_roles_asignado_por")
+  roles                                         roles     @relation(fields: [id_rol], references: [id_rol], map: "fk_usuario_roles_rol")
+  usuarios_usuario_roles_id_usuarioTousuarios   usuarios  @relation("usuario_roles_id_usuarioTousuarios", fields: [id_usuario], references: [id_usuario], onDelete: Cascade, map: "fk_usuario_roles_usuario")
+
+  @@id([id_usuario, id_rol])
+  @@index([asignado_por], map: "fk_usuario_roles_asignado_por")
+  @@index([id_rol], map: "fk_usuario_roles_rol")
+}
+
+model usuarios {
+  id_usuario                                         BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  uuid                                               String                          @unique(map: "uq_usuarios_uuid") @db.Char(36)
+  nombres                                            String                          @db.VarChar(120)
+  apellidos                                          String                          @db.VarChar(120)
+  cedula                                             String?                         @unique(map: "uq_usuarios_cedula") @db.VarChar(20)
+  email                                              String                          @unique(map: "uq_usuarios_email") @db.VarChar(190)
+  telefono                                           String?                         @db.VarChar(30)
+  password_hash                                      String                          @db.VarChar(255)
+  estado                                             usuarios_estado                 @default(PENDIENTE)
+  email_verificado_at                                DateTime?                       @db.DateTime(0)
+  ultimo_acceso_at                                   DateTime?                       @db.DateTime(0)
+  intentos_fallidos                                  Int                             @default(0) @db.UnsignedSmallInt
+  bloqueado_hasta                                    DateTime?                       @db.DateTime(0)
+  created_at                                         DateTime                        @default(now()) @db.Timestamp(0)
+  updated_at                                         DateTime                        @default(now()) @db.Timestamp(0)
+  deleted_at                                         DateTime?                       @db.DateTime(0)
+  auditoria                                          auditoria[]
+  conciliaciones_pago                                conciliaciones_pago[]
+  configuraciones                                    configuraciones[]
+  docentes                                           docentes?
+  documentos_inscripcion                             documentos_inscripcion[]
+  estudiantes                                        estudiantes?
+  historial_estados_inscripcion                      historial_estados_inscripcion[]
+  notificaciones                                     notificaciones[]
+  ofertas                                            ofertas[]
+  proyecto_docentes                                  proyecto_docentes[]
+  sesiones                                           sesiones[]
+  usuario_roles_usuario_roles_asignado_porTousuarios usuario_roles[]                 @relation("usuario_roles_asignado_porTousuarios")
+  usuario_roles_usuario_roles_id_usuarioTousuarios   usuario_roles[]                 @relation("usuario_roles_id_usuarioTousuarios")
+  validaciones_requisitos                            validaciones_requisitos[]
+
+  @@index([estado], map: "idx_usuarios_estado")
+  @@index([apellidos, nombres], map: "idx_usuarios_nombre")
+}
+
+model validaciones_requisitos {
+  id_validacion            BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion           BigInt        @db.UnsignedBigInt
+  id_requisito             BigInt        @db.UnsignedBigInt
+  cumple                   Boolean
+  valor_obtenido           String?       @db.VarChar(500)
+  observacion              String?       @db.VarChar(1000)
+  validado_automaticamente Boolean       @default(false)
+  validado_por             BigInt?       @db.UnsignedBigInt
+  fecha_validacion         DateTime      @default(now()) @db.DateTime(0)
+  created_at               DateTime      @default(now()) @db.Timestamp(0)
+  inscripciones            inscripciones @relation(fields: [id_inscripcion], references: [id_inscripcion], onDelete: Cascade, map: "fk_validaciones_inscripcion")
+  requisitos               requisitos    @relation(fields: [id_requisito], references: [id_requisito], map: "fk_validaciones_requisito")
+  usuarios                 usuarios?     @relation(fields: [validado_por], references: [id_usuario], map: "fk_validaciones_usuario")
+
+  @@unique([id_inscripcion, id_requisito], map: "uq_validacion_inscripcion_requisito")
+  @@index([validado_por], map: "fk_validaciones_usuario")
+  @@index([id_requisito], map: "idx_validaciones_requisito")
+  @@index([cumple], map: "idx_validaciones_resultado")
+}
+
+enum configuraciones_tipo {
+  STRING
+  INTEGER
+  DECIMAL
+  BOOLEAN
+  JSON
+  DATE
+  DATETIME
+}
+
+enum docentes_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum facultades_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum metodos_pago_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum recinto_carreras_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum areas_investigacion_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum asignaturas_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum escuelas_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum modalidades_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum requisitos_tipo_validacion {
+  AUTOMATICA
+  MANUAL
+  DOCUMENTAL
+}
+
+enum roles_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum tipos_participacion_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum transacciones_pago_tipo {
+  AUTORIZACION
+  CAPTURA
+  VENTA
+  REVERSO
+  REEMBOLSO
+  CONSULTA
+}
+
+enum carreras_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum estados_inscripcion_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum historial_academico_estado_asignatura {
+  APROBADA
+  REPROBADA
+  RETIRADA
+  CURSANDO
+  PENDIENTE
+  CONVALIDADA
+}
+
+enum periodos_academicos_estado {
+  PLANIFICADO
+  ACTIVO
+  CERRADO
+  CANCELADO
+}
+
+enum proyecto_docentes_estado {
+  ACTIVO
+  REMOVIDO
+}
+
+enum proyectos_grado_estado {
+  PENDIENTE
+  EN_DESARROLLO
+  EN_REVISION
+  APROBADO
+  RECHAZADO
+  FINALIZADO
+  CANCELADO
+}
+
+enum requisitos_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum transacciones_pago_estado {
+  PENDIENTE
+  APROBADA
+  RECHAZADA
+  ERROR
+}
+
+enum estudiante_carreras_estado {
+  ACTIVA
+  FINALIZADA
+  SUSPENDIDA
+  RETIRADA
+}
+
+enum notificaciones_canal {
+  IN_APP
+  EMAIL
+  PUSH
+  SISTEMA
+}
+
+enum recintos_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum conciliaciones_pago_estado {
+  ABIERTA
+  PROCESADA
+  CON_DIFERENCIAS
+  CERRADA
+}
+
+enum notificaciones_estado_envio {
+  PENDIENTE
+  ENVIADA
+  ERROR
+}
+
+enum pagos_estado {
+  CREADO
+  PENDIENTE
+  PROCESANDO
+  APROBADO
+  RECHAZADO
+  REVERSADO
+  REEMBOLSADO
+  CANCELADO
+}
+
+enum planes_estudio_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum usuarios_estado {
+  ACTIVO
+  INACTIVO
+  BLOQUEADO
+  PENDIENTE
+}
+
+enum documentos_inscripcion_estado_validacion {
+  PENDIENTE
+  VALIDO
+  RECHAZADO
+}
+
+enum ofertas_estado {
+  BORRADOR
+  PUBLICADA
+  CERRADA
+  CANCELADA
+}

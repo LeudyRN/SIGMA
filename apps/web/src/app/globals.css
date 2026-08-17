@@ -1,0 +1,72 @@
+@import 'tailwindcss';
+
+:root {
+  --institutional: #0b2b50;
+  --primary: #1557a0;
+  --primary-light: #eaf2fb;
+  --surface: #f7f9fc;
+  --background: #ffffff;
+  --foreground: #172033;
+  --muted: #eef2f7;
+  --muted-foreground: #5b667a;
+  --border: #d9e2ee;
+  --ring: #1557a0;
+  --primary-foreground: #ffffff;
+  --success: #16845b;
+  --warning: #d99000;
+  --error: #c93c3c;
+  --radius: 0.75rem;
+}
+
+@theme inline {
+  --color-institutional: var(--institutional);
+  --color-primary: var(--primary);
+  --color-primary-light: var(--primary-light);
+  --color-surface: var(--surface);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-error: var(--error);
+  --font-sans: 'Inter', 'Segoe UI', Arial, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--primary-light);
+  color: var(--institutional);
+}
+
+a,
+button {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--ring) 35%, transparent);
+  outline-offset: 3px;
+}

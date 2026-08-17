@@ -1,0 +1,33 @@
+{
+  "name": "sigma-monorepo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SIGMA - Sistema de Gestión e Inscripción Virtual de Tesis y Monográficos",
+  "packageManager": "pnpm@11.22.0",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=11.0.0"
+  },
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names WEB,API --prefix-colors blue,green \"pnpm dev:web\" \"pnpm dev:api\"",
+    "dev:web": "pnpm --filter @sigma/web dev",
+    "dev:api": "pnpm --filter @sigma/api dev",
+    "build": "pnpm -r --if-present build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm --filter @sigma/web test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "postinstall": "pnpm prisma:generate",
+    "prisma:generate": "pnpm --filter @sigma/api prisma:generate",
+    "prisma:migrate": "pnpm --filter @sigma/api prisma:migrate",
+    "prisma:deploy": "pnpm --filter @sigma/api prisma:deploy",
+    "prisma:studio": "pnpm --filter @sigma/api prisma:studio"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prettier": "^3.6.2",
+    "prettier-plugin-tailwindcss": "^0.7.1"
+  }
+}
