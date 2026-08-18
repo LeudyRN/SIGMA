@@ -21,7 +21,7 @@ SIGMA digitaliza la consulta de oferta, validación académica, inscripción, pa
 - Calidad: `pnpm lint`, `pnpm typecheck`, `pnpm format:check`
 - Pruebas: `pnpm test`, `pnpm test:e2e`
 - Build: `pnpm build`
-- Prisma: `pnpm prisma:generate`, `pnpm prisma:migrate`, `pnpm prisma:studio`
+- Prisma: `pnpm prisma:generate`, `pnpm prisma:migrate`, `pnpm prisma:studio`, `pnpm create:user`
 
 ## Base de datos y seguridad
 

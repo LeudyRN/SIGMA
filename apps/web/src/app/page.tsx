@@ -13,6 +13,7 @@ import {
   ReceiptText,
   Users,
 } from 'lucide-react';
+import Link from 'next/link';
 import { buttonVariants } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -85,12 +86,12 @@ export default function Home() {
             </a>
           </nav>
 
-          <a
-            href="#acceso"
+          <Link
+            href="/login"
             className="text-institutional inline-flex h-10 items-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold transition hover:bg-blue-50"
           >
             Acceder <ChevronRight aria-hidden="true" className="size-4" />
-          </a>
+          </Link>
         </div>
       </header>
 
@@ -116,15 +117,15 @@ export default function Home() {
               condición académica y gestiona tu inscripción con UCOTESIS.
             </p>
             <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-              <a
-                href="#servicios"
+              <Link
+                href="/login"
                 className={cn(
                   buttonVariants({ size: 'lg' }),
                   'text-institutional bg-white hover:bg-blue-50',
                 )}
               >
-                Conocer la plataforma <ArrowRight aria-hidden="true" className="size-4" />
-              </a>
+                Ingresar a SIGMA <ArrowRight aria-hidden="true" className="size-4" />
+              </Link>
               <a
                 href="#proceso"
                 className={cn(

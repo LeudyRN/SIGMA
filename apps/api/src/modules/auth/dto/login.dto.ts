@@ -1,13 +1,22 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsString, MinLength } from 'class-validator';
+import { IsNotEmpty, IsString, Matches, MaxLength } from 'class-validator';
 
 export class LoginDto {
-  @ApiProperty({ example: 'estudiante@uasd.edu.do' })
-  @IsEmail()
-  email!: string;
-
-  @ApiProperty({ minLength: 8 })
+  @ApiProperty({
+    example: '100000000',
+    description: 'Matrícula o código institucional de empleado',
+  })
   @IsString()
-  @MinLength(8)
+  @Matches(/^[A-Za-z0-9-]{3,30}$/, {
+    message: 'La matrícula o código de empleado contiene un formato inválido.',
+  })
+  identificador!: string;
+
+  @ApiProperty({
+    example: '********',
+  })
+  @IsString()
+  @IsNotEmpty({ message: 'La contraseña es obligatoria.' })
+  @MaxLength(128, { message: 'La contraseña supera el máximo permitido.' })
   password!: string;
 }

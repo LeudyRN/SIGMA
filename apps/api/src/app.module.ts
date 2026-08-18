@@ -1,15 +1,15 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
 import { AcademicModule } from './modules/academic/academic.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { AuthModule } from './modules/auth/auth.module';
-import { RolesGuard } from './modules/auth/guards/roles.guard';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { EnrollmentsModule } from './modules/enrollments/enrollments.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RolesModule } from './modules/roles/roles.module';
+import { SessionsModule } from './modules/sessions/sessions.module';
 import { StudentsModule } from './modules/students/students.module';
 import { UcotesisModule } from './modules/ucotesis/ucotesis.module';
 import { UsersModule } from './modules/users/users.module';
@@ -25,8 +25,10 @@ import { validateEnvironment } from './shared/config/environment';
     }),
     PrismaModule,
     AuthModule,
+    DashboardModule,
     UsersModule,
     RolesModule,
+    SessionsModule,
     StudentsModule,
     AcademicModule,
     UcotesisModule,
@@ -36,6 +38,5 @@ import { validateEnvironment } from './shared/config/environment';
     AuditModule,
     HealthModule,
   ],
-  providers: [{ provide: APP_GUARD, useClass: RolesGuard }],
 })
 export class AppModule {}

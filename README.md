@@ -50,14 +50,14 @@ El backend se divide por dominios (`auth`, `users`, `roles`, `students`, `academ
 git clone https://github.com/LeudyRN/SIGMA.git
 cd SIGMA
 pnpm install
-cp .env.example .env
+cp .env.example apps/api/.env
 pnpm prisma:generate
 ```
 
 En PowerShell, copie el entorno con:
 
 ```powershell
-Copy-Item .env.example .env
+Copy-Item .env.example apps/api/.env
 ```
 
 ## Variables de entorno
@@ -70,11 +70,12 @@ Copy-Item .env.example .env
 | `DATABASE_USER`          | Usuario de aplicación MySQL                            |
 | `DATABASE_PASSWORD`      | Contraseña del usuario MySQL                           |
 | `DATABASE_NAME`          | Base de datos, normalmente `sigma_ucotesis`            |
-| `JWT_SECRET`             | Firma de tokens de acceso                              |
+| `JWT_ACCESS_SECRET`      | Firma de tokens de acceso                              |
 | `JWT_REFRESH_SECRET`     | Firma independiente de refresh tokens                  |
 | `JWT_ACCESS_EXPIRES_IN`  | Vigencia del access token, por ejemplo `15m`           |
 | `JWT_REFRESH_EXPIRES_IN` | Vigencia del refresh token, por ejemplo `7d`           |
-| `NEXT_PUBLIC_API_URL`    | URL pública del API consumida por Next.js              |
+| `NEXT_PUBLIC_API_URL`    | URL del API; compatibilidad de configuración           |
+| `API_INTERNAL_URL`       | URL interna usada por el proxy seguro de Next.js       |
 | `NEXT_PUBLIC_SITE_URL`   | URL canónica del frontend para metadatos sociales      |
 | `CORS_ORIGIN`            | Origen web exacto autorizado por NestJS                |
 | `API_PORT`               | Puerto del backend; predeterminado `3001`              |
@@ -115,6 +116,8 @@ pnpm dev:api
 | Servicio     | URL                                |
 | ------------ | ---------------------------------- |
 | Frontend     | <http://localhost:3000>            |
+| Login        | <http://localhost:3000/login>      |
+| Mapa modular | <http://localhost:3000/app>        |
 | API          | <http://localhost:3001/api>        |
 | Health check | <http://localhost:3001/api/health> |
 | Swagger      | <http://localhost:3001/api/docs>   |
@@ -128,19 +131,33 @@ pnpm test
 pnpm test:e2e
 pnpm build
 pnpm format:check
-pnpm dev:web
-pnpm dev:api
-pnpm prisma:generate
-pnpm prisma:migrate
-pnpm prisma:studio
-pnpm lint
-pnpm typecheck
-pnpm test
-pnpm test:e2e
-pnpm build
 ```
 
 Playwright puede requerir instalar el navegador la primera vez con `pnpm --filter @sigma/web exec playwright install chromium`.
+
+## Autenticación y mapa funcional
+
+El API implementa inicio de sesión por matrícula o código de empleado mediante los endpoints `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout` y `GET /api/auth/me`. Los tokens de acceso y renovación se guardan en cookies `httpOnly`, se firman con secretos independientes y quedan vinculados a sesiones persistidas y revocables en la base de datos. Al cambiar de cuenta, el frontend cancela las consultas activas y vacía por completo su caché para no reutilizar información del usuario anterior.
+
+La navegación y las rutas REST usan la misma matriz funcional de permisos. La interfaz muestra solo los módulos autorizados para administrador, coordinación, tesorería, docente o estudiante; el API vuelve a consultar en MySQL los roles y permisos efectivos antes de cada operación protegida. Por tanto, retirar una asignación entra en vigor sin depender de datos antiguos del token.
+
+Las cuentas de empleados se administran desde `/app/usuarios` y los roles y permisos desde `/app/roles-permisos`. El alta, consulta, actualización y eliminación se realizan mediante la API; no se crean usuarios mediante variables de entorno.
+
+El catálogo de usuarios internos excluye las cuentas con roles `ADMIN` y `ESTUDIANTE`. Los estudiantes se administran exclusivamente desde `/app/estudiantes`, donde el backend crea de forma transaccional la cuenta, el perfil y la asignación única del rol `ESTUDIANTE`. Las rutas `/app/estudiante-carreras`, `/app/historial-academico` y `/app/elegibilidad` trabajan con los catálogos y expedientes persistidos en MySQL.
+
+La actualización de identidad y acceso del 17 de agosto de 2026 está en `apps/api/prisma/migrations/20260817170000_identidad_acceso_codigo_empleado/migration.sql`. El `ALTER TABLE` aislado solicitado para agregar únicamente el código de empleado está en `db/DB/ALTER_Usuarios_Codigo_Empleado.sql`. La migración completa también crea el catálogo persistente de permisos y su relación con roles.
+
+Si la base local ya tiene `codigo_empleado` pero todavía no tiene el catálogo de permisos, ejecute únicamente `db/DB/ACTUALIZAR_Roles_Permisos.sql`. La matriz funcional ampliada se encuentra en la migración `20260817213000_rbac_funcional` y, para una base local existente, en `db/DB/ACTUALIZAR_Permisos_RBAC.sql`; ambos scripts son idempotentes respecto a sus asignaciones.
+
+Los módulos privados `/app/usuarios`, `/app/roles-permisos`, `/app/sesiones`, `/app/reportes` y el bloque de estudiantes consumen la API real. El centro de notificaciones vive en el encabezado, recibe cambios mediante Server-Sent Events y ejecuta lectura y eliminación directamente en MySQL; no utiliza `localStorage` ni `sessionStorage` como fuente de datos.
+
+`GET /api/dashboard/reports` calcula uso real, distribución de inscripciones por recinto, carrera, modalidad y área, además del consumo API/DB disponible en auditoría. El resumen también se calcula según la audiencia autenticada. Si todavía no existen registros, la respuesta devuelve colecciones vacías en lugar de datos simulados.
+
+La estructura académica dispone de CRUD conectado a MySQL para recintos, facultades, escuelas, carreras, carreras por recinto, planes de estudio y asignaturas. Los planes permiten asignar materias obligatorias, semestre y créditos aplicables; estas relaciones alimentan el historial y el cálculo de elegibilidad al 100 %.
+
+El portal estudiantil consulta exclusivamente el expediente del usuario autenticado. Permite revisar carreras, historial, elegibilidad y ofertas compatibles; solicitar una inscripción con reserva atómica de cupo; consultar su estado; y registrar una intención de pago idempotente. La aprobación del pago y la factura solo se presentan cuando existen datos reales del proveedor y un comprobante persistido; SIGMA no simula aprobaciones financieras.
+
+La ruta privada `/app` presenta, después del inicio de sesión, solo las áreas y módulos permitidos para la cuenta actual. Las fichas marcadas como «planificado» o «base lista» delimitan el trabajo pendiente, aunque todavía no tengan operaciones de negocio conectadas.
 
 ## Estructura del proyecto
 
