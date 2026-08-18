@@ -5,9 +5,7 @@ import { Providers } from './providers';
 import './globals.css';
 
 export const metadata: Metadata = {
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000',
-  ),
+  metadataBase: new URL(process.env.NEXT_PUBLIC_SITE_URL ?? 'http://localhost:3000'),
   title: {
     default: 'SIGMA | UCOTESIS',
     template: '%s | SIGMA',
@@ -32,23 +30,16 @@ export const metadata: Metadata = {
   twitter: {
     card: 'summary_large_image',
     title: 'SIGMA | UCOTESIS',
-    description:
-      'Gestión e inscripción virtual de tesis y monográficos.',
+    description: 'Gestión e inscripción virtual de tesis y monográficos.',
     images: ['/og.png'],
   },
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
       <body>
-        <Providers>
-          {children}
-        </Providers>
+        <Providers>{children}</Providers>
       </body>
     </html>
   );

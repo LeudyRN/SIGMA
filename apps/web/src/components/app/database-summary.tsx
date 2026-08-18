@@ -5,15 +5,9 @@ import { BadgeDollarSign, BookOpenCheck, KeyRound, ShieldCheck, UserCheck } from
 import { apiFetch, readApiError } from '@/lib/api';
 
 interface DashboardSummary {
-  activeSessions: number;
-  activeUsers: number;
-  approvedPayments: number;
-  enrollments: number;
+  audience: string;
   generatedAt: string;
-  publishedOffers: number;
-  roles: number;
-  students: number;
-  totalUsers: number;
+  metrics: Array<{ label: string; value: number; detail: string }>;
 }
 
 async function getDashboardSummary(): Promise<DashboardSummary> {
@@ -48,52 +42,31 @@ export function DatabaseSummary() {
         role="alert"
         className="border-error/20 bg-error/5 text-error mt-8 rounded-2xl border p-5"
       >
-        <p className="font-semibold">No fue posible consultar el resumen de MySQL.</p>
+        <p className="font-semibold">No fue posible consultar el resumen operativo.</p>
         <p className="mt-1 text-sm">{summary.error.message}</p>
       </div>
     );
   }
 
-  const cards = [
-    {
-      detail: `${summary.data.activeUsers} cuentas activas`,
-      icon: UserCheck,
-      label: 'Usuarios registrados',
-      value: summary.data.totalUsers,
-    },
-    {
-      detail: `${summary.data.roles} roles activos`,
-      icon: ShieldCheck,
-      label: 'Perfiles estudiantiles',
-      value: summary.data.students,
-    },
-    {
-      detail: `${summary.data.publishedOffers} ofertas publicadas`,
-      icon: BookOpenCheck,
-      label: 'Inscripciones',
-      value: summary.data.enrollments,
-    },
-    {
-      detail: `${summary.data.activeSessions} sesiones activas`,
-      icon: BadgeDollarSign,
-      label: 'Pagos aprobados',
-      value: summary.data.approvedPayments,
-    },
-  ] as const;
+  const icons = [UserCheck, ShieldCheck, BookOpenCheck, BadgeDollarSign] as const;
+  const cards = summary.data.metrics.map((metric, index) => ({
+    ...metric,
+    icon: icons[index % icons.length],
+  }));
 
   return (
     <section className="mt-8" aria-labelledby="database-summary-title">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="text-primary text-xs font-bold tracking-[0.14em] uppercase">
-            MySQL en vivo
+            Datos operativos
           </p>
           <h2 id="database-summary-title" className="text-institutional mt-1 text-xl font-bold">
             Resumen operativo
           </h2>
         </div>
         <p className="text-muted-foreground flex items-center gap-2 text-xs">
-          <KeyRound aria-hidden="true" className="size-3.5" /> Datos protegidos por sesión
+          <KeyRound aria-hidden="true" className="size-3.5" /> Actualización automática
         </p>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

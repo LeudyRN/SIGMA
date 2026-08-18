@@ -32,6 +32,7 @@ interface AuthenticatedRequest extends Request {
     id: string;
     email: string;
     matricula: string;
+    codigoEmpleado: string;
     roles: string[];
   };
 }
@@ -50,7 +51,7 @@ export class AuthController {
   @ApiResponse({ status: 200, description: 'Inicio de sesión exitoso.' })
   @ApiResponse({
     status: 401,
-    description: 'Matrícula o contraseña incorrectas.',
+    description: 'Matrícula/código de empleado o contraseña incorrectos.',
   })
   async login(
     @Body() dto: LoginDto,

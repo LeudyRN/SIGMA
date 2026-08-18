@@ -2,9 +2,11 @@ import { create } from 'zustand';
 
 export interface AuthUser {
   email: string;
+  employeeCode: string;
   id: string;
   matricula: string;
   name: string;
+  permissions: string[];
   roles: Array<{ code: string; name: string }>;
   uuid: string;
 }

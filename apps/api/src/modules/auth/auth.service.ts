@@ -23,6 +23,7 @@ interface UserWithRoles {
   estado: string;
   id_usuario: bigint;
   matricula: string | null;
+  codigo_empleado: string | null;
 
   intentos_fallidos: number;
   bloqueado_hasta: Date | null;
@@ -34,6 +35,9 @@ interface UserWithRoles {
     roles: {
       codigo: string;
       nombre: string;
+      rol_permisos: Array<{
+        permisos: { codigo: string; estado: string };
+      }>;
     };
   }>;
 
@@ -44,11 +48,13 @@ export interface PublicUser {
   email: string;
   id: string;
   matricula: string;
+  employeeCode: string;
   name: string;
   roles: Array<{
     code: string;
     name: string;
   }>;
+  permissions: string[];
   uuid: string;
 }
 
@@ -90,15 +96,17 @@ export class AuthService {
   }
 
   async login(dto: LoginDto, context: AuthContext): Promise<AuthTokens> {
-    const matricula = normalizeMatricula(dto.matricula);
+    const identifier = normalizeIdentifier(dto.identificador);
 
-    const user = await this.findUserByMatricula(matricula);
+    const user = await this.findUserByIdentifier(identifier);
 
     /*
-     * No revelamos si la matrícula existe.
+     * No revelamos cuál identificador existe.
      */
     if (!user) {
-      throw new UnauthorizedException('Matrícula o contraseña incorrectas.');
+      throw new UnauthorizedException(
+        'Matrícula/código de empleado o contraseña incorrectos.',
+      );
     }
 
     /*
@@ -182,7 +190,9 @@ export class AuthService {
         );
       }
 
-      throw new UnauthorizedException('Matrícula o contraseña incorrectas.');
+      throw new UnauthorizedException(
+        'Matrícula/código de empleado o contraseña incorrectos.',
+      );
     }
 
     /*
@@ -229,7 +239,11 @@ export class AuthService {
           include: {
             usuario_roles_usuario_roles_id_usuarioTousuarios: {
               include: {
-                roles: true,
+                roles: {
+                  include: {
+                    rol_permisos: { include: { permisos: true } },
+                  },
+                },
               },
             },
           },
@@ -247,7 +261,10 @@ export class AuthService {
       throw new UnauthorizedException('La sesión expiró o fue revocada.');
     }
 
-    const tokens = await this.issueTokens(session.usuarios);
+    const tokens = await this.issueTokens(
+      session.usuarios,
+      session.id_sesion.toString(),
+    );
 
     await this.prisma.sesiones.update({
       where: {
@@ -300,7 +317,9 @@ export class AuthService {
       include: {
         usuario_roles_usuario_roles_id_usuarioTousuarios: {
           include: {
-            roles: true,
+            roles: {
+              include: { rol_permisos: { include: { permisos: true } } },
+            },
           },
         },
       },
@@ -321,17 +340,19 @@ export class AuthService {
     return bcrypt.compare(password, passwordHash);
   }
 
-  private async findUserByMatricula(
-    matricula: string,
+  private async findUserByIdentifier(
+    identifier: string,
   ): Promise<UserWithRoles | null> {
-    const user = await this.prisma.usuarios.findUnique({
+    const user = await this.prisma.usuarios.findFirst({
       where: {
-        matricula,
+        OR: [{ matricula: identifier }, { codigo_empleado: identifier }],
       },
       include: {
         usuario_roles_usuario_roles_id_usuarioTousuarios: {
           include: {
-            roles: true,
+            roles: {
+              include: { rol_permisos: { include: { permisos: true } } },
+            },
           },
         },
       },
@@ -348,35 +369,46 @@ export class AuthService {
     user: UserWithRoles,
     context: AuthContext,
   ): Promise<AuthTokens> {
-    const tokens = await this.issueTokens(user);
-
-    await this.prisma.sesiones.create({
+    const placeholder = hashToken(randomUUID());
+    const session = await this.prisma.sesiones.create({
       data: {
         id_usuario: user.id_usuario,
-
-        token_hash: hashToken(tokens.accessToken),
-
-        refresh_token_hash: hashToken(tokens.refreshToken),
-
+        token_hash: placeholder,
+        refresh_token_hash: hashToken(randomUUID()),
         expira_at: new Date(Date.now() + this.refreshExpiresIn * 1000),
-
         ip: context.ip,
         user_agent: context.userAgent,
+      },
+    });
+
+    const tokens = await this.issueTokens(user, session.id_sesion.toString());
+
+    await this.prisma.sesiones.update({
+      where: { id_sesion: session.id_sesion },
+      data: {
+        token_hash: hashToken(tokens.accessToken),
+        refresh_token_hash: hashToken(tokens.refreshToken),
       },
     });
 
     return tokens;
   }
 
-  private async issueTokens(user: UserWithRoles): Promise<AuthTokens> {
+  private async issueTokens(
+    user: UserWithRoles,
+    sessionId: string,
+  ): Promise<AuthTokens> {
     const publicUser = this.toPublicUser(user);
 
     const basePayload = {
       sub: publicUser.id,
       email: publicUser.email,
       matricula: publicUser.matricula,
+      codigoEmpleado: publicUser.employeeCode,
+      sessionId,
 
       roles: publicUser.roles.map((role) => role.code),
+      permissions: publicUser.permissions,
     };
 
     const [accessToken, refreshToken] = await Promise.all([
@@ -424,6 +456,7 @@ export class AuthService {
       email: user.email,
 
       matricula: user.matricula ?? '',
+      employeeCode: user.codigo_empleado ?? '',
 
       name: `${user.nombres} ${user.apellidos}`.trim(),
 
@@ -433,12 +466,22 @@ export class AuthService {
           name: roles.nombre,
         }),
       ),
+      permissions: [
+        ...new Set(
+          user.usuario_roles_usuario_roles_id_usuarioTousuarios.flatMap(
+            ({ roles }) =>
+              roles.rol_permisos
+                .filter(({ permisos }) => permisos.estado === 'ACTIVO')
+                .map(({ permisos }) => permisos.codigo),
+          ),
+        ),
+      ],
     };
   }
 }
 
-function normalizeMatricula(matricula: string): string {
-  return matricula.trim().toUpperCase();
+function normalizeIdentifier(identifier: string): string {
+  return identifier.trim().toUpperCase();
 }
 
 function hashToken(token: string): string {

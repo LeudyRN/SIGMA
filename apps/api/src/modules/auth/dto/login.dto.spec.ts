@@ -4,7 +4,7 @@ import { LoginDto } from './login.dto';
 describe('LoginDto', () => {
   it('accepts a short existing password during authentication', async () => {
     const dto = Object.assign(new LoginDto(), {
-      matricula: '999999999',
+      identificador: '999999999',
       password: 'abcde',
     });
 
@@ -12,11 +12,14 @@ describe('LoginDto', () => {
   });
 
   it('rejects missing credentials', async () => {
-    const dto = Object.assign(new LoginDto(), { matricula: '', password: '' });
+    const dto = Object.assign(new LoginDto(), {
+      identificador: '',
+      password: '',
+    });
     const errors = await validate(dto);
 
     expect(errors.map((error) => error.property)).toEqual(
-      expect.arrayContaining(['matricula', 'password']),
+      expect.arrayContaining(['identificador', 'password']),
     );
   });
 });

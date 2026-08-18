@@ -3,6 +3,14 @@ import { ArrowLeft, Boxes, CheckCircle2, Clock3, Database, FileCode2 } from 'luc
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { allModules, findModuleBySlug } from '@/lib/module-catalog';
+import { UsersPanel } from '@/components/identity/users-panel';
+import { RolesPermissionsPanel } from '@/components/identity/roles-permissions-panel';
+import { SessionsPanel } from '@/components/identity/sessions-panel';
+import { ReportsPanel } from '@/components/general/reports-panel';
+import { StudentsWorkspace } from '@/components/students/students-workspace';
+import { AcademicStructurePanel } from '@/components/academic/academic-structure-panel';
+import type { AcademicMode } from '@/components/academic/academic-structure-panel';
+import { RoleAwareProcessPanel } from '@/components/app/role-aware-process-panel';
 
 interface ModulePageProps {
   params: Promise<{ module: string }>;
@@ -29,6 +37,30 @@ export async function generateMetadata({ params }: ModulePageProps): Promise<Met
 export default async function ModulePlanningPage({ params }: ModulePageProps) {
   const item = findModuleBySlug((await params).module);
   if (!item || item.slug === 'resumen') notFound();
+
+  if (item.slug === 'usuarios') return <UsersPanel />;
+  if (item.slug === 'roles-permisos') return <RolesPermissionsPanel />;
+  if (item.slug === 'sesiones') return <SessionsPanel />;
+  if (item.slug === 'reportes') return <ReportsPanel />;
+  if (item.slug === 'estudiantes') return <StudentsWorkspace mode="profiles" />;
+  if (item.slug === 'estudiante-carreras') return <StudentsWorkspace mode="careers" />;
+  if (item.slug === 'historial-academico') return <StudentsWorkspace mode="history" />;
+  if (item.slug === 'elegibilidad') return <StudentsWorkspace mode="eligibility" />;
+  const academicModes: Record<string, AcademicMode> = {
+    recintos: 'campuses',
+    facultades: 'faculties',
+    escuelas: 'schools',
+    carreras: 'careers',
+    'recinto-carreras': 'campus-careers',
+    'planes-estudio': 'study-plans',
+    asignaturas: 'subjects',
+  };
+  const academicMode = academicModes[item.slug];
+  if (academicMode) return <AcademicStructurePanel mode={academicMode} />;
+  if (item.slug === 'ofertas') return <RoleAwareProcessPanel mode="offers" />;
+  if (item.slug === 'inscripciones') return <RoleAwareProcessPanel mode="enrollments" />;
+  if (item.slug === 'pagos') return <RoleAwareProcessPanel mode="payments" />;
+  if (item.slug === 'facturas') return <RoleAwareProcessPanel mode="invoices" />;
 
   const status = item.status === 'foundation' ? 'Base técnica preparada' : 'Planificado';
   return (

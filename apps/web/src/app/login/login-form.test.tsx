@@ -1,23 +1,35 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { LoginForm } from './login-form';
 
 const mocks = vi.hoisted(() => ({
   apiFetch: vi.fn(),
-  push: vi.fn(),
+  replace: vi.fn(),
   readApiError: vi.fn(),
   refresh: vi.fn(),
 }));
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }),
+  useRouter: () => ({ replace: mocks.replace, refresh: mocks.refresh }),
 }));
 
 vi.mock('@/lib/api', () => ({
   apiFetch: mocks.apiFetch,
   readApiError: mocks.readApiError,
 }));
+
+function renderLoginForm() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <LoginForm />
+    </QueryClientProvider>,
+  );
+}
 
 describe('LoginForm', () => {
   beforeEach(() => {
@@ -26,7 +38,7 @@ describe('LoginForm', () => {
 
   it('shows and hides the password without changing its value', async () => {
     const user = userEvent.setup();
-    render(<LoginForm />);
+    renderLoginForm();
     const password = screen.getByLabelText(/^contraseña$/i);
 
     await user.type(password, 'abcde');
@@ -42,12 +54,12 @@ describe('LoginForm', () => {
 
   it('keeps credentials out of the URL and validates empty fields', async () => {
     const user = userEvent.setup();
-    render(<LoginForm />);
+    renderLoginForm();
 
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }));
 
-    expect(await screen.findByText(/matrícula válida/i)).toBeVisible();
-    expect(screen.getByText(/escribe tu contraseña/i)).toBeVisible();
+    expect(await screen.findByText(/código de empleado es obligatorio/i)).toBeVisible();
+    expect(screen.getByText(/contraseña es obligatoria/i)).toBeVisible();
     expect(mocks.apiFetch).not.toHaveBeenCalled();
     expect(window.location.search).toBe('');
   });
@@ -60,6 +72,7 @@ describe('LoginForm', () => {
           id: '1',
           uuid: 'database-user',
           matricula: '999999999',
+          employeeCode: '',
           email: 'usuario@uasd.edu.do',
           name: 'Usuario SIGMA',
           roles: [{ code: 'ADMIN', name: 'Administrador' }],
@@ -67,16 +80,16 @@ describe('LoginForm', () => {
       }),
     } as Response);
     const user = userEvent.setup();
-    render(<LoginForm />);
+    renderLoginForm();
 
-    await user.type(screen.getByLabelText(/^matrícula$/i), '999999999');
+    await user.type(screen.getByLabelText(/matrícula o código de empleado/i), '999999999');
     await user.type(screen.getByLabelText(/^contraseña$/i), 'abcde');
     await user.click(screen.getByRole('button', { name: /iniciar sesión/i }));
 
-    await waitFor(() => expect(mocks.push).toHaveBeenCalledWith('/app'));
+    await waitFor(() => expect(mocks.replace).toHaveBeenCalledWith('/app'));
     expect(mocks.apiFetch).toHaveBeenCalledWith('/auth/login', {
       method: 'POST',
-      body: JSON.stringify({ matricula: '999999999', password: 'abcde' }),
+      body: JSON.stringify({ identificador: '999999999', password: 'abcde' }),
     });
   });
 });

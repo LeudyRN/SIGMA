@@ -30,7 +30,7 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'reportes',
         label: 'Reportes',
         description: 'Consultas e informes por recinto, carrera, modalidad y período.',
-        status: 'planned',
+        status: 'available',
       },
     ],
   },
@@ -42,19 +42,19 @@ export const moduleCatalog: ModuleGroup[] = [
       {
         slug: 'usuarios',
         label: 'Usuarios',
-        description: 'Cuentas, estados, contacto y recuperación de acceso.',
+        description: 'Cuentas del personal, estados, contacto y recuperación de acceso.',
         status: 'foundation',
       },
       {
         slug: 'roles-permisos',
         label: 'Roles y permisos',
-        description: 'Administrador, coordinación, tesorería, estudiante y docente.',
+        description: 'Coordinación, tesorería, estudiante, docente y sus capacidades.',
         status: 'foundation',
       },
       {
         slug: 'sesiones',
-        label: 'Sesiones',
-        description: 'Tokens activos, renovación y revocación de sesiones.',
+        label: 'Actividad de acceso',
+        description: 'Dispositivos, accesos y revocación de sesiones.',
         status: 'foundation',
       },
     ],
@@ -68,25 +68,25 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'estudiantes',
         label: 'Perfiles estudiantiles',
         description: 'Matrícula, identidad, contacto y carreras asociadas.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'estudiante-carreras',
         label: 'Carreras del estudiante',
         description: 'Recinto, plan de estudio, ingreso, egreso y estado.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'historial-academico',
         label: 'Historial académico',
         description: 'Asignaturas cursadas, calificaciones y estado académico.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'elegibilidad',
         label: 'Elegibilidad',
         description: 'Evaluación automática del plan y materias pendientes.',
-        status: 'planned',
+        status: 'available',
       },
     ],
   },
@@ -99,43 +99,43 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'recintos',
         label: 'Recintos',
         description: 'Sedes y recintos regionales habilitados.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'facultades',
         label: 'Facultades',
         description: 'Catálogo institucional de facultades.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'escuelas',
         label: 'Escuelas',
         description: 'Escuelas académicas asociadas a facultades.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'carreras',
         label: 'Carreras',
         description: 'Programas y niveles académicos disponibles.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'recinto-carreras',
         label: 'Carreras por recinto',
         description: 'Disponibilidad de carreras en cada recinto.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'planes-estudio',
         label: 'Planes de estudio',
         description: 'Versiones, vigencia y créditos de cada plan.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'asignaturas',
         label: 'Asignaturas',
         description: 'Catálogo de materias y créditos.',
-        status: 'planned',
+        status: 'available',
       },
     ],
   },
@@ -172,7 +172,7 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'ofertas',
         label: 'Ofertas',
         description: 'Publicación por recinto, carrera, modalidad, cupo y monto.',
-        status: 'planned',
+        status: 'available',
       },
     ],
   },
@@ -185,7 +185,7 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'inscripciones',
         label: 'Solicitudes de inscripción',
         description: 'Expedientes, monto aplicado, fechas y observaciones.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'sustentantes',
@@ -228,7 +228,7 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'pagos',
         label: 'Pagos',
         description: 'Intenciones, montos, referencias y estados.',
-        status: 'planned',
+        status: 'available',
       },
       {
         slug: 'transacciones',
@@ -246,7 +246,7 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'facturas',
         label: 'Facturas digitales',
         description: 'Recibos PDF, snapshot histórico y QR de autenticidad.',
-        status: 'planned',
+        status: 'available',
       },
     ],
   },
@@ -271,19 +271,6 @@ export const moduleCatalog: ModuleGroup[] = [
         slug: 'asesores-jurados',
         label: 'Asesores y jurados',
         description: 'Asignación y participación docente en proyectos.',
-        status: 'planned',
-      },
-    ],
-  },
-  {
-    key: 'comunicacion',
-    label: 'Comunicación',
-    description: 'Mensajes y avisos durante el proceso.',
-    modules: [
-      {
-        slug: 'notificaciones',
-        label: 'Notificaciones',
-        description: 'Avisos en plataforma, correo, push y sistema.',
         status: 'planned',
       },
     ],
@@ -315,4 +302,54 @@ export const allModules = moduleCatalog.flatMap((group) =>
 
 export function findModuleBySlug(slug: string) {
   return allModules.find((module) => module.slug === slug);
+}
+
+const MODULE_PERMISSIONS: Record<string, string[]> = {
+  resumen: ['GENERAL_RESUMEN_LEER'],
+  reportes: ['GENERAL_REPORTES_LEER'],
+  usuarios: ['IDENTIDAD_USUARIOS_GESTIONAR'],
+  'roles-permisos': ['IDENTIDAD_ROLES_GESTIONAR'],
+  sesiones: ['GENERAL_RESUMEN_LEER'],
+  estudiantes: ['ESTUDIANTES_EXPEDIENTE_GESTIONAR', 'ESTUDIANTES_ELEGIBILIDAD_PROPIA'],
+  'estudiante-carreras': ['ESTUDIANTES_EXPEDIENTE_GESTIONAR', 'ESTUDIANTES_ELEGIBILIDAD_PROPIA'],
+  'historial-academico': ['ESTUDIANTES_EXPEDIENTE_GESTIONAR', 'ESTUDIANTES_ELEGIBILIDAD_PROPIA'],
+  elegibilidad: ['ESTUDIANTES_EXPEDIENTE_GESTIONAR', 'ESTUDIANTES_ELEGIBILIDAD_PROPIA'],
+  recintos: ['ACADEMICO_CATALOGOS_GESTIONAR'],
+  facultades: ['ACADEMICO_CATALOGOS_GESTIONAR'],
+  escuelas: ['ACADEMICO_CATALOGOS_GESTIONAR'],
+  carreras: ['ACADEMICO_CATALOGOS_GESTIONAR'],
+  'recinto-carreras': ['ACADEMICO_CATALOGOS_GESTIONAR'],
+  'planes-estudio': ['ACADEMICO_CATALOGOS_GESTIONAR'],
+  asignaturas: ['ACADEMICO_CATALOGOS_GESTIONAR'],
+  modalidades: ['UCOTESIS_OFERTAS_GESTIONAR'],
+  periodos: ['UCOTESIS_OFERTAS_GESTIONAR'],
+  'areas-investigacion': ['UCOTESIS_OFERTAS_GESTIONAR'],
+  requisitos: ['UCOTESIS_OFERTAS_GESTIONAR'],
+  ofertas: ['UCOTESIS_OFERTAS_LEER', 'UCOTESIS_OFERTAS_GESTIONAR'],
+  inscripciones: ['INSCRIPCIONES_PROPIAS_GESTIONAR', 'INSCRIPCIONES_GESTIONAR'],
+  sustentantes: ['INSCRIPCIONES_GESTIONAR'],
+  validaciones: ['INSCRIPCIONES_GESTIONAR'],
+  'estados-inscripcion': ['INSCRIPCIONES_GESTIONAR'],
+  documentos: ['INSCRIPCIONES_PROPIAS_GESTIONAR', 'INSCRIPCIONES_GESTIONAR'],
+  'metodos-pago': ['PAGOS_GESTIONAR'],
+  pagos: ['PAGOS_PROPIOS_GESTIONAR', 'PAGOS_GESTIONAR'],
+  transacciones: ['PAGOS_GESTIONAR'],
+  conciliaciones: ['PAGOS_GESTIONAR'],
+  facturas: ['PAGOS_PROPIOS_GESTIONAR', 'PAGOS_GESTIONAR'],
+  'proyectos-grado': ['PROYECTOS_PARTICIPAR', 'PROYECTOS_GESTIONAR'],
+  docentes: ['PROYECTOS_GESTIONAR'],
+  'asesores-jurados': ['PROYECTOS_PARTICIPAR', 'PROYECTOS_GESTIONAR'],
+  configuraciones: ['GOBIERNO_GESTIONAR'],
+  auditoria: ['GOBIERNO_GESTIONAR'],
+};
+
+export interface ModuleAccessUser {
+  permissions: string[];
+  roles: Array<{ code: string }>;
+}
+
+export function canAccessModule(slug: string, user: ModuleAccessUser): boolean {
+  if (user.roles.some((role) => role.code === 'ADMIN')) return true;
+  const required = MODULE_PERMISSIONS[slug] ?? [];
+  return required.some((permission) => user.permissions.includes(permission));
 }

@@ -17,7 +17,6 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "test": "pnpm -r --if-present test",
     "test:e2e": "pnpm --filter @sigma/web test:e2e",
-    "create:user": "pnpm --filter @sigma/api create:user",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "postinstall": "pnpm prisma:generate",

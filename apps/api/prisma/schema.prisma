@@ -594,7 +594,36 @@ model roles {
   estado        roles_estado    @default(ACTIVO)
   created_at    DateTime        @default(now()) @db.Timestamp(0)
   updated_at    DateTime        @default(now()) @db.Timestamp(0)
+  rol_permisos  rol_permisos[]
   usuario_roles usuario_roles[]
+}
+
+model permisos {
+  id_permiso   BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo       String          @unique(map: "uq_permisos_codigo") @db.VarChar(100)
+  nombre       String          @db.VarChar(120)
+  descripcion  String?         @db.VarChar(255)
+  modulo       String          @db.VarChar(80)
+  estado       permisos_estado @default(ACTIVO)
+  created_at   DateTime        @default(now()) @db.Timestamp(0)
+  updated_at   DateTime        @default(now()) @db.Timestamp(0)
+  rol_permisos rol_permisos[]
+
+  @@index([modulo, estado], map: "idx_permisos_modulo_estado")
+}
+
+model rol_permisos {
+  id_rol                                       BigInt    @db.UnsignedBigInt
+  id_permiso                                   BigInt    @db.UnsignedBigInt
+  asignado_por                                 BigInt?   @db.UnsignedBigInt
+  created_at                                   DateTime  @default(now()) @db.Timestamp(0)
+  permisos                                     permisos  @relation(fields: [id_permiso], references: [id_permiso], onDelete: Cascade, map: "fk_rol_permisos_permiso")
+  roles                                        roles     @relation(fields: [id_rol], references: [id_rol], onDelete: Cascade, map: "fk_rol_permisos_rol")
+  usuarios_rol_permisos_asignado_porTousuarios usuarios? @relation("rol_permisos_asignado_porTousuarios", fields: [asignado_por], references: [id_usuario], onDelete: SetNull, map: "fk_rol_permisos_asignado_por")
+
+  @@id([id_rol, id_permiso])
+  @@index([asignado_por], map: "idx_rol_permisos_asignado_por")
+  @@index([id_permiso], map: "idx_rol_permisos_permiso")
 }
 
 model sesiones {
@@ -660,6 +689,7 @@ model usuarios {
   id_usuario                                         BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
   uuid                                               String                          @unique(map: "uq_usuarios_uuid") @db.Char(36)
   matricula                                          String?                         @unique(map: "uq_usuarios_matricula") @db.VarChar(30)
+  codigo_empleado                                    String?                         @unique(map: "uq_usuarios_codigo_empleado") @db.VarChar(30)
   nombres                                            String                          @db.VarChar(120)
   apellidos                                          String                          @db.VarChar(120)
   cedula                                             String?                         @unique(map: "uq_usuarios_cedula") @db.VarChar(20)
@@ -684,6 +714,7 @@ model usuarios {
   notificaciones                                     notificaciones[]
   ofertas                                            ofertas[]
   proyecto_docentes                                  proyecto_docentes[]
+  rol_permisos_rol_permisos_asignado_porTousuarios   rol_permisos[]                  @relation("rol_permisos_asignado_porTousuarios")
   sesiones                                           sesiones[]
   usuario_roles_usuario_roles_asignado_porTousuarios usuario_roles[]                 @relation("usuario_roles_asignado_porTousuarios")
   usuario_roles_usuario_roles_id_usuarioTousuarios   usuario_roles[]                 @relation("usuario_roles_id_usuarioTousuarios")
@@ -771,6 +802,11 @@ enum requisitos_tipo_validacion {
 }
 
 enum roles_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum permisos_estado {
   ACTIVO
   INACTIVO
 }
