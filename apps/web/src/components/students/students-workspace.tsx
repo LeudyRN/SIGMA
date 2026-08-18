@@ -161,8 +161,8 @@ function ManagedStudentsWorkspace({ mode }: { mode: WorkspaceMode }) {
   }
 
   return (
-    <section className="mx-auto max-w-7xl space-y-6">
-      <header className="rounded-3xl border bg-white p-6 shadow-sm">
+    <section className="mx-auto w-full max-w-7xl space-y-4 sm:space-y-6">
+      <header className="rounded-2xl border bg-white p-4 shadow-sm sm:rounded-3xl sm:p-6">
         <p className="text-sm font-bold tracking-widest text-blue-700 uppercase">Estudiantes</p>
         <h1 className="mt-1 text-3xl font-bold text-slate-950">{copy.title}</h1>
         <p className="mt-2 max-w-3xl text-slate-600">{copy.description}</p>

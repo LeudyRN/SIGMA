@@ -2,6 +2,13 @@
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  Download,
+  Upload,
+} from 'lucide-react';
+import {
+  StudyPlanImportDialog,
+} from './study-plan-import-dialog';
+import {
   BookOpen,
   Building2,
   GraduationCap,
@@ -161,6 +168,7 @@ export function AcademicStructurePanel({ mode }: { mode: AcademicMode }) {
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [selectedSubjects, setSelectedSubjects] = useState<string[]>([]);
   const items = structure.data?.[config.collection] ?? [];
+  const [importOpen, setImportOpen] = useState(false);
 
   const refresh = () => void client.invalidateQueries({ queryKey: ['academic', 'structure'] });
   const save = useMutation({
@@ -248,13 +256,62 @@ export function AcademicStructurePanel({ mode }: { mode: AcademicMode }) {
     );
 
   return (
-    <section className="mx-auto max-w-7xl space-y-6">
+    <section className="mx-auto w-full max-w-7xl space-y-4 sm:space-y-6">
       <header className="rounded-3xl border bg-white p-6 shadow-sm">
         <p className="text-sm font-bold tracking-widest text-blue-700 uppercase">
           Estructura académica
         </p>
         <h1 className="mt-1 text-3xl font-bold text-slate-950">{config.title}</h1>
         <p className="mt-2 text-slate-600">{config.description}</p>
+
+        {mode === 'study-plans' && (
+          <div className="mt-5 flex flex-col gap-2 sm:flex-row">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() =>
+                setImportOpen(true)
+              }
+              className="w-full sm:w-auto"
+            >
+              <Upload className="size-4" />
+              Importar plan
+            </Button>
+
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full sm:w-auto"
+              disabled={!editing}
+              onClick={() => {
+                if (!editing) return;
+
+                window.open(
+                  `/api/academic/study-plans/${editing.id}/export`,
+                  '_blank',
+                );
+              }}
+            >
+              <Download className="size-4" />
+              Exportar plan
+            </Button>
+
+            {importOpen && (
+              <StudyPlanImportDialog
+                campuses={
+                  structure.data.campuses
+                }
+                onClose={() =>
+                  setImportOpen(false)
+                }
+                onImported={() => {
+                  refresh();
+                }}
+              />
+            )}
+          </div>
+
+        )}
       </header>
       <section className="rounded-3xl border bg-white p-6 shadow-sm">
         <div className="mb-5 flex items-center justify-between">

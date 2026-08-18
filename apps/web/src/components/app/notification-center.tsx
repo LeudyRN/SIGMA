@@ -38,9 +38,17 @@ export function NotificationCenter() {
   const notifications = useQuery({
     queryKey: ['notifications'],
     queryFn: loadNotifications,
-    refetchInterval: 15_000,
+    refetchInterval:
+      typeof document !== 'undefined' &&
+      document.visibilityState ===
+        'visible'
+        ? 20_000
+        : false,
+
+    refetchOnWindowFocus: true,
   });
 
+  /*
   useEffect(() => {
     const source = new EventSource('/api/notifications/stream', {
       withCredentials: true,
@@ -54,6 +62,7 @@ export function NotificationCenter() {
       source.close();
     };
   }, [queryClient]);
+*/
 
   useEffect(() => {
     if (!open) return;

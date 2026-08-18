@@ -70,7 +70,7 @@ export function ReportsPanel() {
   ];
 
   return (
-    <section className="mx-auto max-w-7xl space-y-6">
+   <section className="mx-auto w-full max-w-7xl space-y-4 sm:space-y-6">
       <header className="rounded-3xl border bg-white p-6 shadow-sm">
         <p className="text-sm font-bold tracking-widest text-blue-700 uppercase">General</p>
         <h1 className="mt-1 text-3xl font-bold text-slate-950">Reportes de uso real</h1>

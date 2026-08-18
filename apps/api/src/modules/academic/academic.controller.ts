@@ -7,13 +7,23 @@ import {
   Patch,
   Post,
   Put,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
+
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
+
 import { AcademicService } from './academic.service';
+import { StudyPlanPdfService } from './study-plan-pdf.service';
+import { StudyPlanTransferService } from './study-plan-transfer.service';
+
 import {
   AssignStudyPlanSubjectsDto,
   CreateCampusCareerDto,
@@ -32,16 +42,34 @@ import {
   UpdateSubjectDto,
 } from './dto/academic-structure.dto';
 
+import { ConfirmStudyPlanImportDto } from './dto/study-plan-transfer.dto';
+
+interface UploadedPdfFile {
+  fieldname: string;
+  originalname: string;
+  encoding: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
+}
+
+
 @ApiTags('Estructura académica')
 @ApiCookieAuth('sigma_access_token')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @Controller('academic')
 export class AcademicController {
-  constructor(private readonly academic: AcademicService) {}
+  constructor(
+    private readonly academic: AcademicService,
+    private readonly studyPlanTransfer: StudyPlanTransferService,
+    private readonly studyPlanPdf: StudyPlanPdfService,
+  ) {}
 
   @Get('structure')
   @Permissions('ACADEMICO_CATALOGOS_LEER')
-  @ApiOperation({ summary: 'Consultar la estructura académica completa' })
+  @ApiOperation({
+    summary: 'Consultar la estructura académica completa',
+  })
   structure() {
     return this.academic.structure();
   }
@@ -51,11 +79,16 @@ export class AcademicController {
   createCampus(@Body() dto: CreateCampusDto) {
     return this.academic.createCampus(dto);
   }
+
   @Patch('campuses/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateCampus(@Param('id') id: string, @Body() dto: UpdateCampusDto) {
+  updateCampus(
+    @Param('id') id: string,
+    @Body() dto: UpdateCampusDto,
+  ) {
     return this.academic.updateCampus(id, dto);
   }
+
   @Delete('campuses/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   deleteCampus(@Param('id') id: string) {
@@ -67,11 +100,16 @@ export class AcademicController {
   createFaculty(@Body() dto: CreateFacultyDto) {
     return this.academic.createFaculty(dto);
   }
+
   @Patch('faculties/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateFaculty(@Param('id') id: string, @Body() dto: UpdateFacultyDto) {
+  updateFaculty(
+    @Param('id') id: string,
+    @Body() dto: UpdateFacultyDto,
+  ) {
     return this.academic.updateFaculty(id, dto);
   }
+
   @Delete('faculties/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   deleteFaculty(@Param('id') id: string) {
@@ -83,11 +121,16 @@ export class AcademicController {
   createSchool(@Body() dto: CreateSchoolDto) {
     return this.academic.createSchool(dto);
   }
+
   @Patch('schools/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateSchool(@Param('id') id: string, @Body() dto: UpdateSchoolDto) {
+  updateSchool(
+    @Param('id') id: string,
+    @Body() dto: UpdateSchoolDto,
+  ) {
     return this.academic.updateSchool(id, dto);
   }
+
   @Delete('schools/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   deleteSchool(@Param('id') id: string) {
@@ -99,11 +142,16 @@ export class AcademicController {
   createCareer(@Body() dto: CreateCareerDto) {
     return this.academic.createCareer(dto);
   }
+
   @Patch('careers/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateCareer(@Param('id') id: string, @Body() dto: UpdateCareerDto) {
+  updateCareer(
+    @Param('id') id: string,
+    @Body() dto: UpdateCareerDto,
+  ) {
     return this.academic.updateCareer(id, dto);
   }
+
   @Delete('careers/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   deleteCareer(@Param('id') id: string) {
@@ -112,9 +160,12 @@ export class AcademicController {
 
   @Post('campus-careers')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  createCampusCareer(@Body() dto: CreateCampusCareerDto) {
+  createCampusCareer(
+    @Body() dto: CreateCampusCareerDto,
+  ) {
     return this.academic.createCampusCareer(dto);
   }
+
   @Patch('campus-careers/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   updateCampusCareer(
@@ -123,6 +174,7 @@ export class AcademicController {
   ) {
     return this.academic.updateCampusCareer(id, dto);
   }
+
   @Delete('campus-careers/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   deleteCampusCareer(@Param('id') id: string) {
@@ -131,19 +183,27 @@ export class AcademicController {
 
   @Post('study-plans')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  createStudyPlan(@Body() dto: CreateStudyPlanDto) {
+  createStudyPlan(
+    @Body() dto: CreateStudyPlanDto,
+  ) {
     return this.academic.createStudyPlan(dto);
   }
+
   @Patch('study-plans/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateStudyPlan(@Param('id') id: string, @Body() dto: UpdateStudyPlanDto) {
+  updateStudyPlan(
+    @Param('id') id: string,
+    @Body() dto: UpdateStudyPlanDto,
+  ) {
     return this.academic.updateStudyPlan(id, dto);
   }
+
   @Delete('study-plans/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   deleteStudyPlan(@Param('id') id: string) {
     return this.academic.deleteStudyPlan(id);
   }
+
   @Put('study-plans/:id/subjects')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   assignStudyPlanSubjects(
@@ -153,16 +213,79 @@ export class AcademicController {
     return this.academic.assignStudyPlanSubjects(id, dto);
   }
 
+  @Post('study-plans/import/preview')
+  @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: {
+        fileSize: 15 * 1024 * 1024,
+      },
+    }),
+  )
+  @ApiOperation({
+    summary:
+      'Analizar un PDF de plan de estudios antes de importarlo',
+  })
+    previewStudyPlanImport(
+      @UploadedFile() file: UploadedPdfFile,
+    ) {
+      return this.studyPlanTransfer.preview(file);
+    }
+
+  @Post('study-plans/import/confirm')
+  @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
+  @ApiOperation({
+    summary:
+      'Confirmar la importación del plan de estudios',
+  })
+  confirmStudyPlanImport(
+    @Body() dto: ConfirmStudyPlanImportDto,
+  ) {
+    return this.studyPlanTransfer.confirm(
+      dto.token,
+      dto.campusIds,
+    );
+  }
+
+  @Get('study-plans/:id/export')
+  @Permissions('ACADEMICO_CATALOGOS_LEER')
+  @ApiOperation({
+    summary: 'Exportar un plan de estudios a PDF',
+  })
+  async exportStudyPlan(
+    @Param('id') id: string,
+    @Res() response: Response,
+  ) {
+    const pdf = await this.studyPlanPdf.exportPlan(id);
+
+    response.setHeader(
+      'Content-Type',
+      'application/pdf',
+    );
+
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="plan-estudios-${id}.pdf"`,
+    );
+
+    response.send(pdf);
+  }
+
   @Post('subjects')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   createSubject(@Body() dto: CreateSubjectDto) {
     return this.academic.createSubject(dto);
   }
+
   @Patch('subjects/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateSubject(@Param('id') id: string, @Body() dto: UpdateSubjectDto) {
+  updateSubject(
+    @Param('id') id: string,
+    @Body() dto: UpdateSubjectDto,
+  ) {
     return this.academic.updateSubject(id, dto);
   }
+
   @Delete('subjects/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   deleteSubject(@Param('id') id: string) {

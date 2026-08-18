@@ -155,25 +155,70 @@ export class AcademicService {
         status: item.estado,
         studentCount: item._count.estudiante_carreras,
         subjects: item.plan_estudio_asignaturas.map((relation) => ({
-          id: relation.id_asignatura.toString(),
-          code: relation.asignaturas.codigo,
-          name: relation.asignaturas.nombre,
-          semester: relation.semestre,
-          mandatory: relation.obligatoria,
+            id:
+              relation.id_asignatura.toString(),
+
+            code:
+              relation.asignaturas.codigo,
+
+            name:
+              relation.asignaturas.nombre,
+
+            theoreticalHours:
+              relation.asignaturas
+                .horas_teoricas,
+
+            practicalHours:
+              relation.asignaturas
+                .horas_practicas,
+
+            semester:
+              relation.semestre,
+
+            mandatory:
+              relation.obligatoria,
+
+            type:
+              relation.tipo,
+
+            prerequisiteText:
+              relation.prerrequisitos_texto,
+
+            equivalenceText:
+              relation.equivalencias_texto,
+
+            credits:
+              relation.creditos_plan?.toNumber() ??
+              relation.asignaturas.creditos.toNumber(),
+              })),
+      })),
+
+        subjects: subjects.map((item) => ({
+          id: item.id_asignatura.toString(),
+
+          code: item.codigo,
+          name: item.nombre,
+
+          theoreticalHours:
+            item.horas_teoricas,
+
+          practicalHours:
+            item.horas_practicas,
+
           credits:
-            relation.creditos_plan?.toNumber() ??
-            relation.asignaturas.creditos.toNumber(),
+            item.creditos.toNumber(),
+
+          status:
+            item.estado,
+
+          studyPlanCount:
+            item._count
+              .plan_estudio_asignaturas,
+
+          historyCount:
+            item._count
+              .historial_academico,
         })),
-      })),
-      subjects: subjects.map((item) => ({
-        id: item.id_asignatura.toString(),
-        code: item.codigo,
-        name: item.nombre,
-        credits: item.creditos.toNumber(),
-        status: item.estado,
-        studyPlanCount: item._count.plan_estudio_asignaturas,
-        historyCount: item._count.historial_academico,
-      })),
     };
   }
 

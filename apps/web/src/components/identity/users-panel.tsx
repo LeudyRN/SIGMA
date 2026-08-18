@@ -197,7 +197,7 @@ export function UsersPanel() {
   }
 
   return (
-    <section className="mx-auto max-w-7xl space-y-6">
+    <section className="mx-auto w-full max-w-7xl space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-4 rounded-3xl border bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-bold tracking-widest text-blue-700 uppercase">

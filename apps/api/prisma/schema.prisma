@@ -22,15 +22,23 @@ model areas_investigacion {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model asignaturas {
-  id_asignatura            BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
-  codigo                   String                     @unique(map: "uq_asignaturas_codigo") @db.VarChar(30)
-  nombre                   String                     @db.VarChar(180)
-  creditos                 Decimal                    @default(0.00) @db.Decimal(5, 2)
-  estado                   asignaturas_estado         @default(ACTIVO)
-  created_at               DateTime                   @default(now()) @db.Timestamp(0)
-  updated_at               DateTime                   @default(now()) @db.Timestamp(0)
+  id_asignatura BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  codigo        String @unique(map: "uq_asignaturas_codigo") @db.VarChar(30)
+  nombre        String @db.VarChar(180)
+
+  horas_teoricas  Int @default(0) @db.UnsignedSmallInt
+  horas_practicas Int @default(0) @db.UnsignedSmallInt
+
+  creditos   Decimal            @default(0.00) @db.Decimal(5, 2)
+  estado     asignaturas_estado @default(ACTIVO)
+  created_at DateTime           @default(now()) @db.Timestamp(0)
+  updated_at DateTime           @default(now()) @db.Timestamp(0)
+
   historial_academico      historial_academico[]
   plan_estudio_asignaturas plan_estudio_asignaturas[]
+
+  relaciones_origen  asignatura_relaciones[] @relation("asignatura_relacion_origen")
+  relaciones_destino asignatura_relaciones[] @relation("asignatura_relacion_destino")
 
   @@index([nombre], map: "idx_asignaturas_nombre")
 }
@@ -475,33 +483,85 @@ model periodos_academicos {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model plan_estudio_asignaturas {
-  id_plan_estudio BigInt         @db.UnsignedBigInt
-  id_asignatura   BigInt         @db.UnsignedBigInt
-  semestre        Int?           @db.UnsignedTinyInt
-  obligatoria     Boolean        @default(true)
-  creditos_plan   Decimal?       @db.Decimal(5, 2)
-  created_at      DateTime       @default(now()) @db.Timestamp(0)
-  asignaturas     asignaturas    @relation(fields: [id_asignatura], references: [id_asignatura], map: "fk_pea_asignatura")
-  planes_estudio  planes_estudio @relation(fields: [id_plan_estudio], references: [id_plan_estudio], onDelete: Cascade, map: "fk_pea_plan")
+  id_plan_estudio      BigInt   @db.UnsignedBigInt
+  id_asignatura        BigInt   @db.UnsignedBigInt
+  semestre             Int?     @db.UnsignedTinyInt
+  obligatoria          Boolean  @default(true)
+  creditos_plan        Decimal? @db.Decimal(5, 2)
+  prerrequisitos_texto String?  @db.VarChar(1000)
+  equivalencias_texto  String?  @db.VarChar(1000)
+  tipo                 String   @default("REGULAR") @db.VarChar(30)
+  orden                Int?     @db.UnsignedSmallInt
+  created_at           DateTime @default(now()) @db.Timestamp(0)
+
+  asignaturas    asignaturas    @relation(fields: [id_asignatura], references: [id_asignatura], map: "fk_pea_asignatura")
+  planes_estudio planes_estudio @relation(fields: [id_plan_estudio], references: [id_plan_estudio], onDelete: Cascade, map: "fk_pea_plan")
 
   @@id([id_plan_estudio, id_asignatura])
   @@index([id_asignatura], map: "idx_pea_asignatura")
 }
 
+model recinto_carrera_planes {
+  id_recinto_carrera BigInt                  @db.UnsignedBigInt
+  id_plan_estudio    BigInt                  @db.UnsignedBigInt
+  estado             recinto_carreras_estado @default(ACTIVO)
+  created_at         DateTime                @default(now()) @db.Timestamp(0)
+
+  recinto_carreras recinto_carreras @relation(fields: [id_recinto_carrera], references: [id_recinto_carrera], onDelete: Cascade, map: "fk_rcp_recinto_carrera")
+  planes_estudio   planes_estudio   @relation(fields: [id_plan_estudio], references: [id_plan_estudio], onDelete: Cascade, map: "fk_rcp_plan")
+
+  @@id([id_recinto_carrera, id_plan_estudio])
+  @@index([id_plan_estudio], map: "idx_rcp_plan")
+}
+
+model asignatura_relaciones {
+  id_relacion               BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
+  id_plan_estudio           BigInt                          @db.UnsignedBigInt
+  id_asignatura             BigInt                          @db.UnsignedBigInt
+  id_asignatura_relacionada BigInt                          @db.UnsignedBigInt
+  tipo                      asignatura_relaciones_tipo
+  operador                  asignatura_relaciones_operador?
+  grupo                     Int?                            @db.UnsignedSmallInt
+  created_at                DateTime                        @default(now()) @db.Timestamp(0)
+
+  planes_estudio planes_estudio @relation(fields: [id_plan_estudio], references: [id_plan_estudio], onDelete: Cascade, map: "fk_ar_plan")
+  asignatura     asignaturas    @relation("asignatura_relacion_origen", fields: [id_asignatura], references: [id_asignatura], onDelete: Cascade, map: "fk_ar_asignatura")
+  relacionada    asignaturas    @relation("asignatura_relacion_destino", fields: [id_asignatura_relacionada], references: [id_asignatura], onDelete: Cascade, map: "fk_ar_relacionada")
+
+  @@unique([id_plan_estudio, id_asignatura, id_asignatura_relacionada, tipo], map: "uq_asignatura_relacion")
+  @@index([id_plan_estudio], map: "idx_ar_plan")
+  @@index([id_asignatura], map: "idx_ar_asignatura")
+  @@index([id_asignatura_relacionada], map: "idx_ar_relacionada")
+}
+
+enum asignatura_relaciones_tipo {
+  PRERREQUISITO
+  CORREQUISITO
+  EQUIVALENCIA
+}
+
+enum asignatura_relaciones_operador {
+  AND
+  OR
+}
+
 model planes_estudio {
-  id_plan_estudio          BigInt                     @id @default(autoincrement()) @db.UnsignedBigInt
-  id_carrera               BigInt                     @db.UnsignedBigInt
-  codigo                   String                     @unique(map: "uq_planes_codigo") @db.VarChar(50)
-  nombre                   String                     @db.VarChar(150)
-  anio_inicio              Int                        @db.Year
-  anio_fin                 Int?                       @db.Year
-  creditos_totales         Decimal?                   @db.Decimal(7, 2)
-  estado                   planes_estudio_estado      @default(ACTIVO)
-  created_at               DateTime                   @default(now()) @db.Timestamp(0)
-  updated_at               DateTime                   @default(now()) @db.Timestamp(0)
+  id_plan_estudio  BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  id_carrera       BigInt                @db.UnsignedBigInt
+  codigo           String                @unique(map: "uq_planes_codigo") @db.VarChar(50)
+  nombre           String                @db.VarChar(150)
+  anio_inicio      Int                   @db.Year
+  anio_fin         Int?                  @db.Year
+  creditos_totales Decimal?              @db.Decimal(7, 2)
+  estado           planes_estudio_estado @default(ACTIVO)
+  created_at       DateTime              @default(now()) @db.Timestamp(0)
+  updated_at       DateTime              @default(now()) @db.Timestamp(0)
+
+  carreras                 carreras                   @relation(fields: [id_carrera], references: [id_carrera], map: "fk_planes_carrera")
   estudiante_carreras      estudiante_carreras[]
   plan_estudio_asignaturas plan_estudio_asignaturas[]
-  carreras                 carreras                   @relation(fields: [id_carrera], references: [id_carrera], map: "fk_planes_carrera")
+  asignatura_relaciones    asignatura_relaciones[]
+  recinto_carrera_planes   recinto_carrera_planes[]
 
   @@index([id_carrera], map: "idx_planes_carrera")
 }
@@ -545,16 +605,19 @@ model proyectos_grado {
 }
 
 model recinto_carreras {
-  id_recinto_carrera  BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
-  id_recinto          BigInt                  @db.UnsignedBigInt
-  id_carrera          BigInt                  @db.UnsignedBigInt
-  estado              recinto_carreras_estado @default(ACTIVO)
-  created_at          DateTime                @default(now()) @db.Timestamp(0)
-  updated_at          DateTime                @default(now()) @db.Timestamp(0)
-  estudiante_carreras estudiante_carreras[]
-  ofertas             ofertas[]
-  carreras            carreras                @relation(fields: [id_carrera], references: [id_carrera], map: "fk_rc_carrera")
-  recintos            recintos                @relation(fields: [id_recinto], references: [id_recinto], map: "fk_rc_recinto")
+  id_recinto_carrera BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
+  id_recinto         BigInt                  @db.UnsignedBigInt
+  id_carrera         BigInt                  @db.UnsignedBigInt
+  estado             recinto_carreras_estado @default(ACTIVO)
+  created_at         DateTime                @default(now()) @db.Timestamp(0)
+  updated_at         DateTime                @default(now()) @db.Timestamp(0)
+
+  estudiante_carreras    estudiante_carreras[]
+  recinto_carrera_planes recinto_carrera_planes[]
+  ofertas                ofertas[]
+
+  carreras carreras @relation(fields: [id_carrera], references: [id_carrera], map: "fk_rc_carrera")
+  recintos recintos @relation(fields: [id_recinto], references: [id_recinto], map: "fk_rc_recinto")
 
   @@unique([id_recinto, id_carrera], map: "uq_recinto_carrera")
   @@index([id_carrera], map: "idx_rc_carrera")
