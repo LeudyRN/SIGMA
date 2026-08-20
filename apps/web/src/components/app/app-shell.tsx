@@ -25,13 +25,7 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 
-import {
-  apiFetch,
-  ApiError,
-  isAuthenticationError,
-  isNetworkError,
-  readApiError,
-} from '@/lib/api';
+import { apiFetch, ApiError, isAuthenticationError, isNetworkError, readApiError } from '@/lib/api';
 import { allModules, canAccessModule, moduleCatalog } from '@/lib/module-catalog';
 import { cn } from '@/lib/utils';
 import { useAuthStore } from '@/store/auth-store';
@@ -54,61 +48,37 @@ async function loadCurrentUser(): Promise<AuthUser> {
   let response: Response;
 
   try {
-    response =
-      await apiFetch('/auth/me');
+    response = await apiFetch('/auth/me');
   } catch (error) {
     if (isNetworkError(error)) {
       throw error;
     }
 
-    throw new ApiError(
-      'No fue posible validar la sesión.',
-      null,
-      'UNKNOWN',
-    );
+    throw new ApiError('No fue posible validar la sesión.', null, 'UNKNOWN');
   }
 
   if (response.status === 401) {
     let refresh: Response;
 
     try {
-      refresh = await apiFetch(
-        '/auth/refresh',
-        {
-          method: 'POST',
-        },
-      );
+      refresh = await apiFetch('/auth/refresh', {
+        method: 'POST',
+      });
     } catch (error) {
       throw error;
     }
 
     if (refresh.ok) {
-      response =
-        await apiFetch('/auth/me');
-    } else if (
-      refresh.status === 401 ||
-      refresh.status === 403
-    ) {
-      throw new ApiError(
-        'Tu sesión expiró.',
-        refresh.status,
-        'HTTP',
-      );
+      response = await apiFetch('/auth/me');
+    } else if (refresh.status === 401 || refresh.status === 403) {
+      throw new ApiError('Tu sesión expiró.', refresh.status, 'HTTP');
     } else {
-      throw new ApiError(
-        await readApiError(refresh),
-        refresh.status,
-        'HTTP',
-      );
+      throw new ApiError(await readApiError(refresh), refresh.status, 'HTTP');
     }
   }
 
   if (!response.ok) {
-    throw new ApiError(
-      await readApiError(response),
-      response.status,
-      'HTTP',
-    );
+    throw new ApiError(await readApiError(response), response.status, 'HTTP');
   }
 
   return response.json() as Promise<AuthUser>;
@@ -134,37 +104,21 @@ export function AppShell({ children }: { children: ReactNode }) {
   const { setUser, user } = useAuthStore();
 
   const session = useQuery({
-    queryKey: [
-      'auth',
-      'me',
-    ],
+    queryKey: ['auth', 'me'],
 
-    queryFn:
-      loadCurrentUser,
+    queryFn: loadCurrentUser,
 
-    staleTime:
-      60_000,
+    staleTime: 60_000,
 
-    retry: (
-      failureCount,
-      error,
-    ) => {
-      if (
-        isAuthenticationError(error)
-      ) {
+    retry: (failureCount, error) => {
+      if (isAuthenticationError(error)) {
         return false;
       }
 
       return failureCount < 5;
     },
 
-    retryDelay:
-      (attempt) =>
-        Math.min(
-          1000 *
-            2 ** attempt,
-          15_000,
-        ),
+    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 15_000),
   });
 
   const visibleGroups = useMemo(() => {
@@ -203,25 +157,14 @@ export function AppShell({ children }: { children: ReactNode }) {
       return;
     }
 
-    if (
-      isAuthenticationError(
-        session.error,
-      )
-    ) {
+    if (isAuthenticationError(session.error)) {
       setUser(null);
 
       queryClient.clear();
 
-      router.replace(
-        '/login?reason=session-expired',
-      );
+      router.replace('/login?reason=session-expired');
     }
-  }, [
-    queryClient,
-    router,
-    session.error,
-    setUser,
-  ]);
+  }, [queryClient, router, session.error, setUser]);
 
   async function logout(): Promise<void> {
     try {
@@ -243,37 +186,23 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-    if (
-    session.isError &&
-    !isAuthenticationError(
-      session.error,
-    )
-  ) {
+  if (session.isError && !isAuthenticationError(session.error)) {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 px-4">
         <section className="w-full max-w-md rounded-3xl border border-amber-200 bg-white p-6 text-center shadow-sm sm:p-8">
           <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-amber-100 text-amber-700">
-            <LoaderCircle
-              aria-hidden="true"
-              className="size-6"
-            />
+            <LoaderCircle aria-hidden="true" className="size-6" />
           </div>
 
-          <h1 className="mt-4 text-xl font-bold text-slate-950">
-            Reconectando con SIGMA
-          </h1>
+          <h1 className="mt-4 text-xl font-bold text-slate-950">Reconectando con SIGMA</h1>
 
           <p className="mt-2 text-sm leading-6 text-slate-600">
-            Tu sesión no se ha cerrado.
-            El servidor no está disponible
-            temporalmente.
+            Tu sesión no se ha cerrado. El servidor no está disponible temporalmente.
           </p>
 
           <button
             type="button"
-            onClick={() =>
-              void session.refetch()
-            }
+            onClick={() => void session.refetch()}
             className="mt-5 h-11 w-full rounded-xl bg-blue-600 px-4 text-sm font-bold text-white hover:bg-blue-700"
           >
             Reintentar conexión
@@ -283,14 +212,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     );
   }
 
-  if (
-    session.isError &&
-    isAuthenticationError(
-      session.error,
-    )
-  )
-
-  {
+  if (session.isError && isAuthenticationError(session.error)) {
     return (
       <main className="grid min-h-screen place-items-center bg-slate-50 px-6">
         <p className="font-semibold text-slate-900">Redirigiendo al inicio de sesión...</p>
@@ -314,17 +236,7 @@ export function AppShell({ children }: { children: ReactNode }) {
   const workspaceLabel = getWorkspaceLabel(user);
 
   return (
-    <div
-      className="
-        min-h-screen
-        min-w-0
-        overflow-x-hidden
-        bg-[#F5F7FB]
-
-        lg:grid
-        lg:grid-cols-[17rem_minmax(0,1fr)]
-      "
-    >
+    <div className="min-h-screen min-w-0 overflow-x-hidden bg-[#F5F7FB] lg:grid lg:grid-cols-[17rem_minmax(0,1fr)]">
       {/* MOBILE OVERLAY */}
       {mobileMenuOpen && (
         <button
@@ -340,36 +252,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       ========================================================= */}
       <aside
         className={cn(
-          `
-          fixed
-          inset-y-0
-          left-0
-          z-50
-
-          flex
-          w-[min(21rem,calc(100vw-1.25rem))]
-          -translate-x-full
-          flex-col
-          overflow-hidden
-
-          bg-[#123A5A]
-          text-white
-
-          shadow-[16px_0_40px_rgba(15,23,42,0.12)]
-
-          transition-transform
-          duration-300
-          ease-out
-
-          lg:sticky
-          lg:top-0
-          lg:h-screen
-          lg:w-[17rem]
-          lg:translate-x-0
-          lg:shadow-none
-          `,
-          mobileMenuOpen &&
-            'translate-x-0',
+          `fixed inset-y-0 left-0 z-50 flex w-[min(21rem,calc(100vw-1.25rem))] -translate-x-full flex-col overflow-hidden bg-[#123A5A] text-white shadow-[16px_0_40px_rgba(15,23,42,0.12)] transition-transform duration-300 ease-out lg:h-dvh lg:min-h-dvh lg:w-[17rem] lg:translate-x-0 lg:shadow-none`,
+          mobileMenuOpen && 'translate-x-0',
         )}
       >
         {/* =====================================================
@@ -585,128 +469,39 @@ export function AppShell({ children }: { children: ReactNode }) {
       {/* =========================================================
           PAGE AREA
       ========================================================= */}
-      <div className="min-w-0 overflow-x-hidden">
+      <div className="min-w-0 overflow-x-hidden lg:col-start-2">
         {/* TOPBAR */}
-    <header
-      className="
-        sticky
-        top-0
-        z-30
+        <header className="sticky top-0 z-30 flex h-[66px] min-w-0 items-center gap-3 border-b border-slate-200/80 bg-white/95 px-4 backdrop-blur sm:h-[74px] sm:px-6 lg:px-8 xl:px-10">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen(true)}
+            aria-label="Abrir menú"
+            className="grid size-10 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-700 transition hover:bg-slate-200 lg:hidden"
+          >
+            <Menu aria-hidden="true" className="size-5" />
+          </button>
 
-        flex
-        h-[66px]
-        min-w-0
-        items-center
-        gap-3
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-bold tracking-[0.16em] text-blue-600 uppercase">SIGMA</p>
 
-        border-b
-        border-slate-200/80
-        bg-white/95
+            <p className="mt-0.5 truncate text-sm font-semibold text-slate-900 sm:text-[16px]">
+              {activeModule ? getModuleLabel(activeModule, user) : workspaceLabel}
+            </p>
+          </div>
 
-        px-4
-
-        backdrop-blur
-
-        sm:h-[74px]
-        sm:px-6
-
-        lg:px-8
-        xl:px-10
-      "
-    >
-      <button
-        type="button"
-        onClick={() => setMobileMenuOpen(true)}
-        aria-label="Abrir menú"
-        className="
-          grid
-          size-10
-          shrink-0
-          place-items-center
-          rounded-xl
-
-          bg-slate-100
-          text-slate-700
-
-          transition
-
-          hover:bg-slate-200
-
-          lg:hidden
-        "
-      >
-        <Menu
-          aria-hidden="true"
-          className="size-5"
-        />
-      </button>
-
-      <div className="min-w-0 flex-1">
-        <p
-          className="
-            text-[10px]
-            font-bold
-            tracking-[0.16em]
-            text-blue-600
-            uppercase
-          "
-        >
-          SIGMA
-        </p>
-
-        <p
-          className="
-            mt-0.5
-            truncate
-
-            text-sm
-            font-semibold
-            text-slate-900
-
-            sm:text-[16px]
-          "
-        >
-          {activeModule
-            ? getModuleLabel(activeModule, user)
-            : workspaceLabel}
-        </p>
-      </div>
-
-      <div className="shrink-0">
-        <NotificationCenter />
-      </div>
-    </header>
+          <div className="shrink-0">
+            <NotificationCenter />
+          </div>
+        </header>
 
         {/* PAGE CONTENT */}
-        <main
-          className="
-            min-h-[calc(100vh-74px)]
-            min-w-0
-            overflow-x-hidden
-            bg-[#F5F7FB]
-
-            px-3
-            py-4
-
-            sm:px-5
-            sm:py-6
-
-            lg:px-8
-            lg:py-8
-
-            xl:px-10
-            xl:py-9
-          "
-        >
-          <div className="mx-auto w-full min-w-0 ">
+        <main className="min-h-[calc(100vh-74px)] min-w-0 overflow-x-hidden bg-[#F5F7FB] px-3 py-4 sm:px-5 sm:py-6 lg:px-8 lg:py-8 xl:px-10 xl:py-9">
+          <div className="mx-auto w-full min-w-0">
             {activeModuleAllowed ? (
               children
             ) : (
               <section className="rounded-2xl border bg-white p-5 text-center shadow-sm sm:rounded-3xl sm:p-8 lg:p-10">
-                <ShieldCheck
-                  className="mx-auto size-10 text-slate-400"
-                  aria-hidden="true"
-                />
+                <ShieldCheck className="mx-auto size-10 text-slate-400" aria-hidden="true" />
 
                 <h1 className="mt-4 text-xl font-bold text-slate-950 sm:text-2xl">
                   Acceso no autorizado
@@ -716,10 +511,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                   Tu rol no tiene permisos para consultar este módulo.
                 </p>
 
-                <Link
-                  href="/app"
-                  className="mt-5 inline-flex font-bold text-blue-700"
-                >
+                <Link href="/app" className="mt-5 inline-flex font-bold text-blue-700">
                   Volver al resumen
                 </Link>
               </section>

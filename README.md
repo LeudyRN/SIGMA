@@ -40,36 +40,88 @@ El backend se divide por dominios (`auth`, `users`, `roles`, `students`, `academ
 
 ## Requisitos
 
+- Git
 - Node.js 22 o superior
 - pnpm 11 o superior
 - MySQL 8.0 o superior
 
-## Instalación
+Compruebe las versiones antes de continuar:
 
 ```bash
-git clone https://github.com/LeudyRN/SIGMA.git
-cd SIGMA
-pnpm install
-cp .env.example apps/api/.env
-pnpm prisma:generate
+git --version
+node --version
+pnpm --version
+mysql --version
 ```
 
-En PowerShell, copie el entorno con:
+Si Node está instalado pero `pnpm` no está disponible, puede habilitarlo con Corepack:
+
+```bash
+corepack enable
+corepack prepare pnpm@11.22.0 --activate
+```
+
+## Clonación e instalación desde cero
+
+La rama de integración y trabajo del proyecto es **`qa`**. Clone el repositorio dejando esa rama activa:
+
+```bash
+git clone --branch qa https://github.com/LeudyRN/SIGMA.git SIGMA-MONOGRAFICO
+cd SIGMA-MONOGRAFICO
+git branch --show-current
+```
+
+El último comando debe mostrar `qa`. Todos los comandos `pnpm` documentados a continuación deben ejecutarse desde la raíz `SIGMA-MONOGRAFICO`, donde se encuentran `package.json` y `pnpm-workspace.yaml`.
+
+Antes de instalar, cree el entorno local del API. En PowerShell:
 
 ```powershell
 Copy-Item .env.example apps/api/.env
 ```
+
+En Bash, Git Bash, macOS o Linux:
+
+```bash
+cp .env.example apps/api/.env
+```
+
+Abra `apps/api/.env` y complete, como mínimo, `DATABASE_URL`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`. Ejemplo sin credenciales reales:
+
+```dotenv
+DATABASE_URL="COMPLETE_AQUI_LA_URL_MYSQL_LOCAL"
+JWT_ACCESS_SECRET="SECRETO_ALEATORIO_LARGO_Y_UNICO"
+JWT_REFRESH_SECRET="OTRO_SECRETO_ALEATORIO_LARGO_Y_DIFERENTE"
+```
+
+No suba `apps/api/.env` ni `apps/web/.env.local` a Git. Si la contraseña MySQL contiene caracteres especiales, deben codificarse para URL dentro de `DATABASE_URL`.
+
+Con el entorno ya configurado, instale todas las dependencias del monorepo:
+
+```bash
+pnpm install
+```
+
+La instalación ejecuta `pnpm prisma:generate` automáticamente. Después, aplique las migraciones pendientes sobre una base local ya inicializada:
+
+```bash
+pnpm prisma:deploy
+```
+
+Resumen del lugar desde donde se ejecuta cada acción:
+
+| Acción                                        | Directorio               |
+| --------------------------------------------- | ------------------------ |
+| `git pull`, `git push` y cambio de rama       | Raíz `SIGMA-MONOGRAFICO` |
+| `pnpm install`                                | Raíz `SIGMA-MONOGRAFICO` |
+| Comandos `pnpm dev:*`, pruebas y build        | Raíz `SIGMA-MONOGRAFICO` |
+| Archivo privado del backend                   | `apps/api/.env`          |
+| Archivo web opcional para URLs personalizadas | `apps/web/.env.local`    |
 
 ## Variables de entorno
 
 | Variable                 | Propósito                                              |
 | ------------------------ | ------------------------------------------------------ |
 | `DATABASE_URL`           | URL MySQL usada por Prisma CLI                         |
-| `DATABASE_HOST`          | Host usado por el driver del API                       |
-| `DATABASE_PORT`          | Puerto MySQL, normalmente `3306`                       |
-| `DATABASE_USER`          | Usuario de aplicación MySQL                            |
-| `DATABASE_PASSWORD`      | Contraseña del usuario MySQL                           |
-| `DATABASE_NAME`          | Base de datos, normalmente `sigma_ucotesis`            |
 | `JWT_ACCESS_SECRET`      | Firma de tokens de acceso                              |
 | `JWT_REFRESH_SECRET`     | Firma independiente de refresh tokens                  |
 | `JWT_ACCESS_EXPIRES_IN`  | Vigencia del access token, por ejemplo `15m`           |
@@ -82,7 +134,11 @@ Copy-Item .env.example apps/api/.env
 | `WEB_PORT`               | Puerto documentado del frontend; predeterminado `3000` |
 | `NODE_ENV`               | `development`, `test` o `production`                   |
 
-Nunca utilice los valores de ejemplo en producción ni versione el archivo `.env`.
+Las variables `DATABASE_URL`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET` se dejan vacías
+intencionalmente en `.env.example`: el API y Prisma
+rechazan el arranque si no se configuran en el `.env` local. Nunca versione ese archivo ni
+reutilice secretos entre ambientes. Puede generar cada secreto JWT con
+`openssl rand -base64 48` o con el gestor de secretos de su plataforma.
 
 ## Base de datos
 
@@ -102,16 +158,38 @@ pnpm prisma:studio
 
 ## Desarrollo local
 
+### Ejecutar API y web juntos
+
+Desde la raíz del repositorio:
+
 ```bash
 pnpm dev
 ```
 
-También puede iniciar cada aplicación por separado:
+El modo de desarrollo compila el API en `apps/api/.nest-dev`, separado de `dist`, y el
+frontend espera a que `GET /api/health` responda antes de iniciar. De esta forma un
+`pnpm build` no elimina los archivos que está usando el watcher ni genera errores de proxy
+durante el arranque.
+
+### Ejecutar API y web por separado
+
+Abra dos terminales en la raíz `SIGMA-MONOGRAFICO`. Inicie primero el backend.
+
+Terminal 1:
+
+```bash
+pnpm dev:api
+```
+
+Terminal 2:
 
 ```bash
 pnpm dev:web
-pnpm dev:api
 ```
+
+`dev:web` espera hasta 90 segundos a que el health check del API responda. Si aparece `ECONNREFUSED 127.0.0.1:3001`, compruebe que la primera terminal siga ejecutando el API, que MySQL esté iniciado y que `apps/api/.env` sea válido.
+
+Para detener los procesos use `Ctrl+C` en cada terminal. No es necesario ejecutar los comandos dentro de `apps/web` o `apps/api`; los scripts raíz seleccionan automáticamente la aplicación correspondiente.
 
 | Servicio     | URL                                |
 | ------------ | ---------------------------------- |
@@ -138,6 +216,13 @@ Playwright puede requerir instalar el navegador la primera vez con `pnpm --filte
 ## Autenticación y mapa funcional
 
 El API implementa inicio de sesión por matrícula o código de empleado mediante los endpoints `POST /api/auth/login`, `POST /api/auth/refresh`, `POST /api/auth/logout` y `GET /api/auth/me`. Los tokens de acceso y renovación se guardan en cookies `httpOnly`, se firman con secretos independientes y quedan vinculados a sesiones persistidas y revocables en la base de datos. Al cambiar de cuenta, el frontend cancela las consultas activas y vacía por completo su caché para no reutilizar información del usuario anterior.
+
+El historial académico permite previsualizar y confirmar importaciones PDF por carrera
+estudiantil, además de exportar el expediente con la plantilla institucional. La importación
+valida matrícula, carrera, códigos, equivalencias, períodos, créditos y calificaciones; es
+idempotente por asignatura y período. Los literales `AUS` se registran como retirados sin
+nota y no impiden almacenar una calificación válida de la misma materia en un período
+posterior.
 
 La navegación y las rutas REST usan la misma matriz funcional de permisos. La interfaz muestra solo los módulos autorizados para administrador, coordinación, tesorería, docente o estudiante; el API vuelve a consultar en MySQL los roles y permisos efectivos antes de cada operación protegida. Por tanto, retirar una asignación entra en vigor sin depender de datos antiguos del token.
 
@@ -182,7 +267,7 @@ SIGMA-MONOGRAFICO/
 
 ```text
 main  -> rama estable / producción
-qa    -> validación y QA
+qa    -> rama habitual de desarrollo, integración y QA
 
 feature/*
    |
@@ -193,6 +278,75 @@ feature/*
  main
 ```
 
+### Descargar los cambios más recientes
+
+Ejecute desde la raíz del repositorio:
+
+```bash
+git status
+git fetch origin
+git switch qa
+git pull --rebase origin qa
+```
+
+`git status` debe revisarse antes de cambiar de rama o descargar cambios. Si tiene trabajo sin terminar, confírmelo con un commit o guárdelo temporalmente:
+
+```bash
+git stash push --include-untracked -m "trabajo local pendiente"
+git pull --rebase origin qa
+git stash pop
+```
+
+No use `git reset --hard` para actualizarse: puede eliminar cambios locales sin recuperación sencilla.
+
+### Subir cambios a `qa`
+
+Revise y valide el proyecto antes de publicar:
+
+```bash
+git switch qa
+git pull --rebase origin qa
+git status
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+git add ruta/al/archivo-modificado otra/ruta
+git status
+git diff --staged
+git commit -m "feat: describir el cambio realizado"
+git push origin qa
+```
+
+Agregue solamente los archivos que forman parte del cambio. Revise `git status` y `git diff --staged` para confirmar que no se incluyeron `.env`, credenciales, PDFs privados, archivos temporales ni secretos. Si otra persona subió cambios mientras trabajaba, repita `git pull --rebase origin qa`, resuelva los conflictos, vuelva a validar y luego ejecute `git push origin qa`.
+
+### Cambiar o crear ramas
+
+Cambiar a la rama habitual de trabajo:
+
+```bash
+git fetch origin
+git switch qa
+git pull --rebase origin qa
+```
+
+Crear una rama de funcionalidad partiendo de `qa`, cuando el equipo decida trabajar mediante pull request:
+
+```bash
+git switch qa
+git pull --rebase origin qa
+git switch -c feature/nombre-corto
+git push --set-upstream origin feature/nombre-corto
+```
+
+Volver posteriormente a `qa`:
+
+```bash
+git switch qa
+```
+
+`main` se reserva para la versión estable. Los cambios deben validarse primero en `qa`; no se recomienda desarrollar ni hacer `push` directo sobre `main`.
+
 ## Seguridad
 
 - Los secretos nunca se versionan y deben ser diferentes por ambiente.
@@ -201,5 +355,18 @@ feature/*
 - Los endpoints privados deben combinar autenticación y autorización por rol.
 - CORS acepta el origen configurado; no usa comodín global.
 - Los pagos requieren idempotencia y los cupos deben reservarse atómicamente.
+
+## Operación de UCOTESIS
+
+La migración `20260820190000_operacion_ucotesis_completa` habilita los catálogos y ofertas, la inscripción con reserva atómica de cupos, cuentas bancarias institucionales, comprobantes de transferencia persistidos, revisión de Tesorería, factura PDF verificable, proyectos de grado y gobierno del sistema.
+
+Después de descargar estos cambios, aplique las migraciones sin iniciar los servidores:
+
+```bash
+pnpm prisma:generate
+pnpm prisma:deploy
+```
+
+En desarrollo, use `pnpm prisma:migrate` únicamente para crear una migración nueva. Las cuentas bancarias se administran desde **Pagos y facturación > Cuentas bancarias**; no se configuran en variables de entorno.
 
 Consulte [Arquitectura](docs/architecture.md) y [Base de datos](docs/database.md) antes de ampliar módulos o modificar el esquema.

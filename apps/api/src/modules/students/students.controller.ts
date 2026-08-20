@@ -7,9 +7,14 @@ import {
   Patch,
   Post,
   Query,
+  Res,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -24,6 +29,11 @@ import { CreateStudentDto } from './dto/create-student.dto';
 import { UpdateAcademicRecordDto } from './dto/update-academic-record.dto';
 import { UpdateStudentCareerDto } from './dto/update-student-career.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
+import { AcademicHistoryPdfService } from './academic-history-pdf.service';
+import {
+  AcademicHistoryTransferService,
+  type UploadedHistoryPdf,
+} from './academic-history-transfer.service';
 import { StudentsService } from './students.service';
 
 @ApiTags('Estudiantes')
@@ -33,7 +43,11 @@ import { StudentsService } from './students.service';
 @Permissions('ESTUDIANTES_EXPEDIENTE_GESTIONAR')
 @Controller('students')
 export class StudentsController {
-  constructor(private readonly students: StudentsService) {}
+  constructor(
+    private readonly students: StudentsService,
+    private readonly historyTransfer: AcademicHistoryTransferService,
+    private readonly historyPdf: AcademicHistoryPdfService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'Consultar perfiles estudiantiles' })
@@ -86,6 +100,47 @@ export class StudentsController {
   @Get('careers/:careerId/history')
   history(@Param('careerId') careerId: string) {
     return this.students.history(careerId);
+  }
+
+  @Post('careers/:careerId/history/import/preview')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }),
+  )
+  @ApiOperation({
+    summary: 'Validar un histórico académico antes de importarlo',
+  })
+  previewHistoryImport(
+    @Param('careerId') careerId: string,
+    @UploadedFile() file: UploadedHistoryPdf,
+  ) {
+    return this.historyTransfer.preview(careerId, file);
+  }
+
+  @Post('careers/:careerId/history/import/confirm')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }),
+  )
+  @ApiOperation({ summary: 'Importar un histórico académico validado' })
+  confirmHistoryImport(
+    @Param('careerId') careerId: string,
+    @UploadedFile() file: UploadedHistoryPdf,
+  ) {
+    return this.historyTransfer.confirm(careerId, file);
+  }
+
+  @Get('careers/:careerId/history/export')
+  @ApiOperation({ summary: 'Exportar el histórico académico a PDF' })
+  async exportHistory(
+    @Param('careerId') careerId: string,
+    @Res() response: Response,
+  ) {
+    const result = await this.historyPdf.exportCareer(careerId);
+    response.setHeader('Content-Type', 'application/pdf');
+    response.setHeader(
+      'Content-Disposition',
+      `attachment; filename="historico-academico-${result.matricula}.pdf"`,
+    );
+    response.send(result.buffer);
   }
 
   @Post('careers/:careerId/history')

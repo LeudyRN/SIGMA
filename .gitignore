@@ -3,6 +3,7 @@ node_modules/
 .pnpm-store/
 .next/
 dist/
+.nest-dev/
 out/
 build/
 coverage/

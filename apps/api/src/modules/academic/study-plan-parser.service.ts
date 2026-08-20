@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
-
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 interface PositionedItem {
   text: string;
@@ -41,10 +37,7 @@ export interface ParsedStudyPlanSubject {
 
   mandatory: boolean;
 
-  type:
-    | 'REGULAR'
-    | 'OPTATIVA'
-    | 'TESIS';
+  type: 'REGULAR' | 'OPTATIVA' | 'TESIS';
 
   order: number;
 }
@@ -73,25 +66,19 @@ export class StudyPlanParserService {
     let pdfjs: typeof import('pdfjs-dist/legacy/build/pdf.mjs');
 
     try {
-      pdfjs = await import(
-        'pdfjs-dist/legacy/build/pdf.mjs'
-      );
+      pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
     } catch {
       throw new BadRequestException(
         'No fue posible cargar el lector de archivos PDF.',
       );
     }
 
-    let document: Awaited<
-      ReturnType<
-        typeof pdfjs.getDocument
-      >['promise']
-    >;
+    let document: Awaited<ReturnType<typeof pdfjs.getDocument>['promise']>;
 
     try {
-    const loadingTask = pdfjs.getDocument({
-      data: new Uint8Array(buffer),
-    });
+      const loadingTask = pdfjs.getDocument({
+        data: new Uint8Array(buffer),
+      });
 
       document = await loadingTask.promise;
     } catch {
@@ -102,16 +89,10 @@ export class StudyPlanParserService {
 
     const allLines: PositionedLine[][] = [];
 
-    for (
-      let pageNumber = 1;
-      pageNumber <= document.numPages;
-      pageNumber += 1
-    ) {
-      const page =
-        await document.getPage(pageNumber);
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
 
-      const content =
-        await page.getTextContent();
+      const content = await page.getTextContent();
 
       const items: PositionedItem[] = [];
 
@@ -128,79 +109,59 @@ export class StudyPlanParserService {
 
         items.push({
           text,
-          x: item.transform[4],
-          y: item.transform[5],
-          width: item.width ?? 0,
+          x: Number(item.transform[4] ?? 0),
+          y: Number(item.transform[5] ?? 0),
+          width: Number(item.width ?? 0),
         });
       }
 
-      allLines.push(
-        groupIntoLines(items),
-      );
+      allLines.push(groupIntoLines(items));
     }
 
-    const completeText =
-      allLines
-        .flat()
-        .map((line) =>
-          line.items
-            .map((item) => item.text)
-            .join(' '),
-        )
-        .join('\n');
+    const completeText = allLines
+      .flat()
+      .map((line) => line.items.map((item) => item.text).join(' '))
+      .join('\n');
 
-    if (
-      !/Plan de estudios/i.test(
-        completeText,
-      )
-    ) {
+    if (!/Plan de estudios/i.test(completeText)) {
       throw new BadRequestException(
         'El documento no tiene la estructura esperada de un plan de estudios.',
       );
     }
 
-  const metadata =
-    parseMetadata(completeText);
+    const metadata = parseMetadata(completeText);
 
-  const missingMetadata: string[] = [];
+    const missingMetadata: string[] = [];
 
-  if (!metadata.faculty) {
-    missingMetadata.push('facultad');
-  }
+    if (!metadata.faculty) {
+      missingMetadata.push('facultad');
+    }
 
-  if (!metadata.school) {
-    missingMetadata.push('escuela');
-  }
+    if (!metadata.school) {
+      missingMetadata.push('escuela');
+    }
 
-  if (!metadata.career) {
-    missingMetadata.push('carrera');
-  }
+    if (!metadata.career) {
+      missingMetadata.push('carrera');
+    }
 
-  if (!metadata.careerCode) {
-    missingMetadata.push(
-      'código de carrera',
-    );
-  }
+    if (!metadata.careerCode) {
+      missingMetadata.push('código de carrera');
+    }
 
-  if (!metadata.planCode) {
-    missingMetadata.push(
-      'código de plan',
-    );
-  }
+    if (!metadata.planCode) {
+      missingMetadata.push('código de plan');
+    }
 
-  if (missingMetadata.length) {
-    throw new BadRequestException(
-      `No fue posible identificar: ${missingMetadata.join(', ')}.`,
-    );
-  }
+    if (missingMetadata.length) {
+      throw new BadRequestException(
+        `No fue posible identificar: ${missingMetadata.join(', ')}.`,
+      );
+    }
 
-    const subjects =
-      parsePages(allLines);
+    const subjects = parsePages(allLines);
 
-    console.log(
-      '[StudyPlanParser] asignaturas detectadas:',
-      subjects.length,
-    );
+    console.log('[StudyPlanParser] asignaturas detectadas:', subjects.length);
 
     console.log(
       '[StudyPlanParser] primeras asignaturas:',
@@ -224,14 +185,9 @@ export class StudyPlanParserService {
  * METADATA
  * ============================================================ */
 
-function parseMetadata(
-  text: string,
-): Omit<ParsedStudyPlan, 'subjects'> {
+function parseMetadata(text: string): Omit<ParsedStudyPlan, 'subjects'> {
   const planCode =
-    matchFirst(
-      text,
-      /Plan de estudios\s*:?\s*(\d{4,20})/i,
-    ) ?? '';
+    matchFirst(text, /Plan de estudios\s*:?\s*(\d{4,20})/i) ?? '';
 
   if (!planCode) {
     throw new BadRequestException(
@@ -239,83 +195,47 @@ function parseMetadata(
     );
   }
 
-  const careerMatch =
-    text.match(
-      /\b(\d{3,10})\s*-\s*([A-ZÁÉÍÓÚÑ0-9_-]{2,20})\b/i,
-    );
+  const careerMatch = text.match(
+    /\b(\d{3,10})\s*-\s*([A-ZÁÉÍÓÚÑ0-9_-]{2,20})\b/i,
+  );
 
-    function findMetadataValue(
-      text: string,
-      pattern: RegExp,
-    ): string | null {
-      const lines = text
-        .split('\n')
-        .map((line) =>
-          normalizeSpaces(line),
-        )
-        .filter(Boolean);
+  function findMetadataValue(text: string, pattern: RegExp): string | null {
+    const lines = text
+      .split('\n')
+      .map((line) => normalizeSpaces(line))
+      .filter(Boolean);
 
-      return (
-        lines.find((line) =>
-          pattern.test(line),
-        ) ?? null
-      );
-    }
+    return lines.find((line) => pattern.test(line)) ?? null;
+  }
 
-const faculty =
-  findMetadataValue(
-    text,
-    /^Facultad\b/i,
-  ) ?? '';
+  const faculty = findMetadataValue(text, /^Facultad\b/i) ?? '';
 
-const school =
-  findMetadataValue(
-    text,
-    /^Escuela\b/i,
-  ) ?? '';
+  const school = findMetadataValue(text, /^Escuela\b/i) ?? '';
 
-  const career =
-    findCareer(text) ?? '';
+  const career = findCareer(text) ?? '';
 
   return {
     planCode,
 
-    careerCode:
-      careerMatch?.[1] ?? '',
+    careerCode: careerMatch?.[1] ?? '',
 
-    careerShortCode:
-      careerMatch?.[2] ?? null,
+    careerShortCode: careerMatch?.[2] ?? null,
 
-    university:
-      'Universidad Autónoma de Santo Domingo',
+    university: 'Universidad Autónoma de Santo Domingo',
 
     faculty,
     school,
     career,
 
-    totalTheoreticalHours:
-      numberMatch(
-        text,
-        /Total\s+HT\s*:\s*(\d+)/i,
-      ),
+    totalTheoreticalHours: numberMatch(text, /Total\s+HT\s*:\s*(\d+)/i),
 
-    totalPracticalHours:
-      numberMatch(
-        text,
-        /Total\s+HP\s*:\s*(\d+)/i,
-      ),
+    totalPracticalHours: numberMatch(text, /Total\s+HP\s*:\s*(\d+)/i),
 
-    totalCredits:
-      numberMatch(
-        text,
-        /Total\s+Creditos\s*:\s*(\d+)/i,
-      ),
+    totalCredits: numberMatch(text, /Total\s+Creditos\s*:\s*(\d+)/i),
   };
 }
 
-function findCareer(
-  text: string,
-): string | null {
+function findCareer(text: string): string | null {
   const lines = text
     .split('\n')
     .map((line) => normalizeSpaces(line))
@@ -334,19 +254,14 @@ function findCareer(
    * ==========================================================
    */
 
-  const schoolIndex = lines.findIndex((line) =>
-    /^Escuela\b/i.test(line),
-  );
+  const schoolIndex = lines.findIndex((line) => /^Escuela\b/i.test(line));
 
   if (schoolIndex >= 0) {
     const candidates: string[] = [];
 
     for (
       let index = schoolIndex + 1;
-      index < Math.min(
-        lines.length,
-        schoolIndex + 8,
-      );
+      index < Math.min(lines.length, schoolIndex + 8);
       index += 1
     ) {
       const candidate = lines[index];
@@ -363,9 +278,7 @@ function findCareer(
         break;
       }
 
-      if (
-        isMetadataLine(candidate)
-      ) {
+      if (isMetadataLine(candidate)) {
         continue;
       }
 
@@ -436,17 +349,12 @@ function findCareer(
    * ==========================================================
    */
 
-  const careerCodeIndex = lines.findIndex(
-    isCareerCodeLine,
-  );
+  const careerCodeIndex = lines.findIndex(isCareerCodeLine);
 
   if (careerCodeIndex > 0) {
     for (
       let index = careerCodeIndex - 1;
-      index >= Math.max(
-        0,
-        careerCodeIndex - 6,
-      );
+      index >= Math.max(0, careerCodeIndex - 6);
       index -= 1
     ) {
       const candidate = lines[index];
@@ -485,20 +393,12 @@ function findCareer(
   return explicit ?? null;
 }
 
-function isCareerCodeLine(
-  value: string,
-): boolean {
-  return /^\d{3,10}\s*-\s*[A-ZÁÉÍÓÚÑ0-9_-]{2,20}$/i.test(
-    value.trim(),
-  );
+function isCareerCodeLine(value: string): boolean {
+  return /^\d{3,10}\s*-\s*[A-ZÁÉÍÓÚÑ0-9_-]{2,20}$/i.test(value.trim());
 }
 
-function isTableHeader(
-  value: string,
-): boolean {
-  const normalized = removeDiacritics(
-    value,
-  )
+function isTableHeader(value: string): boolean {
+  const normalized = removeDiacritics(value)
     .toLowerCase()
     .replace(/\s+/g, ' ')
     .trim();
@@ -512,11 +412,8 @@ function isTableHeader(
   );
 }
 
-function isMetadataLine(
-  value: string,
-): boolean {
-  const normalized =
-    normalizeSpaces(value);
+function isMetadataLine(value: string): boolean {
+  const normalized = normalizeSpaces(value);
 
   return (
     /^Universidad Autónoma/i.test(normalized) ||
@@ -531,12 +428,8 @@ function isMetadataLine(
     /^Total\s+HP/i.test(normalized) ||
     /^Total\s+Creditos/i.test(normalized) ||
     /^https?:\/\//i.test(normalized) ||
-    /Planes de Estudios de la Universidad Autónoma/i.test(
-      normalized,
-    ) ||
-    /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(
-      normalized,
-    )
+    /Planes de Estudios de la Universidad Autónoma/i.test(normalized) ||
+    /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(normalized)
   );
 }
 
@@ -544,9 +437,7 @@ function isMetadataLine(
  * TABLE PARSING
  * ============================================================ */
 
-function parsePages(
-  pages: PositionedLine[][],
-): ParsedStudyPlanSubject[] {
+function parsePages(pages: PositionedLine[][]): ParsedStudyPlanSubject[] {
   const subjects: ParsedStudyPlanSubject[] = [];
 
   let semester: number | null = null;
@@ -583,7 +474,12 @@ function parsePages(
 
         optionalSection = true;
         thesisSection = false;
-        semester = null;
+        semester =
+          parseSemester(
+            fullText
+              .replace(/^.*?Asignaturas\s+Optativas\s*-?\s*/i, '')
+              .replace(/\s*\(continuaci[oó]n\)\s*$/i, ''),
+          ) ?? semester;
         pendingCodePrefix = null;
 
         continue;
@@ -750,11 +646,7 @@ function createSubjectFromCells(
     prerequisiteText: nullable(cells.prerequisites),
     equivalenceText: nullable(cells.equivalences),
     mandatory: !optionalSection,
-    type: thesisSection
-      ? 'TESIS'
-      : optionalSection
-        ? 'OPTATIVA'
-        : 'REGULAR',
+    type: thesisSection ? 'TESIS' : optionalSection ? 'OPTATIVA' : 'REGULAR',
     order,
   };
 }
@@ -822,64 +714,30 @@ function isCodeSuffix(value: string): boolean {
  * COLUMN DETECTION
  * ============================================================ */
 
-function detectColumns(
-  lines: PositionedLine[],
-): TableColumns | null {
+function detectColumns(lines: PositionedLine[]): TableColumns | null {
   for (const line of lines) {
-    const normalized =
-      line.items.map((item) => ({
-        ...item,
-        key: normalizeHeader(
-          item.text,
-        ),
-      }));
+    const normalized = line.items.map((item) => ({
+      ...item,
+      key: normalizeHeader(item.text),
+    }));
 
-    const code =
-      normalized.find(
-        (item) =>
-          item.key === 'clave',
-      );
+    const code = normalized.find((item) => item.key === 'clave');
 
-    const subject =
-      normalized.find(
-        (item) =>
-          item.key ===
-          'asignatura',
-      );
+    const subject = normalized.find((item) => item.key === 'asignatura');
 
-    const ht =
-      normalized.find(
-        (item) =>
-          item.key === 'ht',
-      );
+    const ht = normalized.find((item) => item.key === 'ht');
 
-    const hp =
-      normalized.find(
-        (item) =>
-          item.key === 'hp',
-      );
+    const hp = normalized.find((item) => item.key === 'hp');
 
-    const credits =
-      normalized.find(
-        (item) =>
-          item.key === 'cr',
-      );
+    const credits = normalized.find((item) => item.key === 'cr');
 
-    const prerequisites =
-      normalized.find(
-        (item) =>
-          item.key.startsWith(
-            'prerequis',
-          ),
-      );
+    const prerequisites = normalized.find((item) =>
+      item.key.startsWith('prerequis'),
+    );
 
-    const equivalences =
-      normalized.find(
-        (item) =>
-          item.key.startsWith(
-            'equivalenc',
-          ),
-      );
+    const equivalences = normalized.find((item) =>
+      item.key.startsWith('equivalenc'),
+    );
 
     if (
       code &&
@@ -896,10 +754,8 @@ function detectColumns(
         ht: ht.x,
         hp: hp.x,
         credits: credits.x,
-        prerequisites:
-          prerequisites.x,
-        equivalences:
-          equivalences.x,
+        prerequisites: prerequisites.x,
+        equivalences: equivalences.x,
       };
     }
   }
@@ -932,100 +788,36 @@ function splitLineIntoCells(
   };
 
   const boundaries = {
-    subject:
-      midpoint(
-        columns.code,
-        columns.subject,
-      ),
+    subject: midpoint(columns.code, columns.subject),
 
-    ht:
-      midpoint(
-        columns.subject,
-        columns.ht,
-      ),
+    ht: midpoint(columns.subject, columns.ht),
 
-    hp:
-      midpoint(
-        columns.ht,
-        columns.hp,
-      ),
+    hp: midpoint(columns.ht, columns.hp),
 
-    credits:
-      midpoint(
-        columns.hp,
-        columns.credits,
-      ),
+    credits: midpoint(columns.hp, columns.credits),
 
-    prerequisites:
-      midpoint(
-        columns.credits,
-        columns.prerequisites,
-      ),
+    prerequisites: midpoint(columns.credits, columns.prerequisites),
 
-    equivalences:
-      midpoint(
-        columns.prerequisites,
-        columns.equivalences,
-      ),
+    equivalences: midpoint(columns.prerequisites, columns.equivalences),
   };
 
   for (const item of line.items) {
     const x = item.x;
 
     if (x < boundaries.subject) {
-      cells.code =
-        appendText(
-          cells.code,
-          item.text,
-        );
-    } else if (
-      x < boundaries.ht
-    ) {
-      cells.subject =
-        appendText(
-          cells.subject,
-          item.text,
-        );
-    } else if (
-      x < boundaries.hp
-    ) {
-      cells.ht =
-        appendText(
-          cells.ht,
-          item.text,
-        );
-    } else if (
-      x < boundaries.credits
-    ) {
-      cells.hp =
-        appendText(
-          cells.hp,
-          item.text,
-        );
-    } else if (
-      x <
-      boundaries.prerequisites
-    ) {
-      cells.credits =
-        appendText(
-          cells.credits,
-          item.text,
-        );
-    } else if (
-      x <
-      boundaries.equivalences
-    ) {
-      cells.prerequisites =
-        appendText(
-          cells.prerequisites,
-          item.text,
-        );
+      cells.code = appendText(cells.code, item.text);
+    } else if (x < boundaries.ht) {
+      cells.subject = appendText(cells.subject, item.text);
+    } else if (x < boundaries.hp) {
+      cells.ht = appendText(cells.ht, item.text);
+    } else if (x < boundaries.credits) {
+      cells.hp = appendText(cells.hp, item.text);
+    } else if (x < boundaries.prerequisites) {
+      cells.credits = appendText(cells.credits, item.text);
+    } else if (x < boundaries.equivalences) {
+      cells.prerequisites = appendText(cells.prerequisites, item.text);
     } else {
-      cells.equivalences =
-        appendText(
-          cells.equivalences,
-          item.text,
-        );
+      cells.equivalences = appendText(cells.equivalences, item.text);
     }
   }
 
@@ -1036,34 +828,23 @@ function splitLineIntoCells(
  * POSITIONING
  * ============================================================ */
 
-function groupIntoLines(
-  items: PositionedItem[],
-): PositionedLine[] {
-  const sorted = [...items].sort(
-    (a, b) => {
-      if (
-        Math.abs(a.y - b.y) > 2
-      ) {
-        return b.y - a.y;
-      }
+function groupIntoLines(items: PositionedItem[]): PositionedLine[] {
+  const sorted = [...items].sort((a, b) => {
+    if (Math.abs(a.y - b.y) > 2) {
+      return b.y - a.y;
+    }
 
-      return a.x - b.x;
-    },
-  );
+    return a.x - b.x;
+  });
 
-  const lines:
-    PositionedLine[] = [];
+  const lines: PositionedLine[] = [];
 
   const tolerance = 3;
 
   for (const item of sorted) {
-    let line =
-      lines.find(
-        (candidate) =>
-          Math.abs(
-            candidate.y - item.y,
-          ) <= tolerance,
-      );
+    let line = lines.find(
+      (candidate) => Math.abs(candidate.y - item.y) <= tolerance,
+    );
 
     if (!line) {
       line = {
@@ -1078,23 +859,17 @@ function groupIntoLines(
   }
 
   for (const line of lines) {
-    line.items.sort(
-      (a, b) => a.x - b.x,
-    );
+    line.items.sort((a, b) => a.x - b.x);
   }
 
-  return lines.sort(
-    (a, b) => b.y - a.y,
-  );
+  return lines.sort((a, b) => b.y - a.y);
 }
 
 /* ============================================================
  * SUBJECT CODE
  * ============================================================ */
 
-function normalizeSubjectCode(
-  value: string,
-): string | null {
+function normalizeSubjectCode(value: string): string | null {
   if (!value) {
     return null;
   }
@@ -1105,9 +880,7 @@ function normalizeSubjectCode(
     .replace(/[^A-Za-z0-9]/g, '')
     .toUpperCase();
 
-  const match = clean.match(
-    /^([A-Z]{2,5})([A-Z0-9]{4})$/,
-  );
+  const match = clean.match(/^([A-Z]{2,5})([A-Z0-9]{4})$/);
 
   if (!match) {
     return null;
@@ -1120,18 +893,10 @@ function normalizeSubjectCode(
  * SEMESTERS
  * ============================================================ */
 
-function parseSemester(
-  value: string,
-): number | null {
-  const normalized =
-    removeDiacritics(value)
-      .toLowerCase()
-      .trim();
+function parseSemester(value: string): number | null {
+  const normalized = removeDiacritics(value).toLowerCase().trim();
 
-  const values: Record<
-    string,
-    number
-  > = {
+  const values: Record<string, number> = {
     primer: 1,
     primero: 1,
     segundo: 2,
@@ -1148,27 +913,22 @@ function parseSemester(
     duodecimo: 12,
   };
 
-  const match =
-    normalized.match(
-      /^(primer|primero|segundo|tercer|tercero|cuarto|quinto|sexto|septimo|octavo|noveno|decimo|undecimo|duodecimo)\s+semestre$/,
-    );
+  const match = normalized.match(
+    /^(primer|primero|segundo|tercer|tercero|cuarto|quinto|sexto|septimo|octavo|noveno|decimo|undecimo|duodecimo)\s+semestre$/,
+  );
 
   if (!match) {
     return null;
   }
 
-  return (
-    values[match[1]] ?? null
-  );
+  return values[match[1]] ?? null;
 }
 
 /* ============================================================
  * UTILS
  * ============================================================ */
 
-function readNumericCells(
-  cells: RowCells,
-): {
+function readNumericCells(cells: RowCells): {
   ht: number;
   hp: number;
   credits: number;
@@ -1176,50 +936,30 @@ function readNumericCells(
   return {
     ht: safeNumber(cells.ht),
     hp: safeNumber(cells.hp),
-    credits: safeNumber(
-      cells.credits,
-    ),
+    credits: safeNumber(cells.credits),
   };
 }
 
-function safeNumber(
-  value: string,
-): number {
-  const match =
-    value.match(
-      /\d+(?:[.,]\d+)?/,
-    );
+function safeNumber(value: string): number {
+  const match = value.match(/\d+(?:[.,]\d+)?/);
 
   if (!match) {
     return 0;
   }
 
-  return Number(
-    match[0].replace(',', '.'),
-  );
+  return Number(match[0].replace(',', '.'));
 }
 
-function isNumeric(
-  value: string,
-): boolean {
-  return /^\s*\d+(?:[.,]\d+)?\s*$/.test(
-    value,
-  );
+function isNumeric(value: string): boolean {
+  return /^\s*\d+(?:[.,]\d+)?\s*$/.test(value);
 }
 
-function midpoint(
-  a: number,
-  b: number,
-): number {
+function midpoint(a: number, b: number): number {
   return a + (b - a) / 2;
 }
 
-function appendText(
-  previous: string,
-  next: string,
-): string {
-  const value =
-    cleanText(next);
+function appendText(previous: string, next: string): string {
+  const value = cleanText(next);
 
   if (!value) {
     return previous;
@@ -1232,160 +972,77 @@ function appendText(
   return `${previous} ${value}`;
 }
 
-function appendNullable(
-  previous: string | null,
-  next: string,
-): string | null {
-  return nullable(
-    appendText(
-      previous ?? '',
-      next,
-    ),
-  );
+function appendNullable(previous: string | null, next: string): string | null {
+  return nullable(appendText(previous ?? '', next));
 }
 
-function nullable(
-  value: string,
-): string | null {
-  const clean =
-    normalizeSpaces(value);
+function nullable(value: string): string | null {
+  const clean = normalizeSpaces(value);
 
   return clean || null;
 }
 
-function cleanText(
-  value: string,
-): string {
+function cleanText(value: string): string {
   return value
-    .replace(
-      /[\uFFFE\uFFFF\u00AD]/g,
-      '',
-    )
+    .replace(/[\uFFFE\uFFFF\u00AD]/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function normalizeSpaces(
-  value: string,
-): string {
+function normalizeSpaces(value: string): string {
   return value
     .replace(/\s+/g, ' ')
-    .replace(
-      /\s+,/g,
-      ',',
-    )
-    .replace(
-      /,\s*/g,
-      ', ',
-    )
-    .replace(
-      /\s*\/\s*/g,
-      ' / ',
-    )
+    .replace(/\s+,/g, ',')
+    .replace(/,\s*/g, ', ')
+    .replace(/\s*\/\s*/g, ' / ')
     .trim();
 }
 
-function removeDiacritics(
-  value: string,
-): string {
-  return value
-    .normalize('NFD')
-    .replace(
-      /[\u0300-\u036f]/g,
-      '',
-    );
+function removeDiacritics(value: string): string {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-function normalizeHeader(
-  value: string,
-): string {
-  return removeDiacritics(
-    cleanText(value),
-  )
+function normalizeHeader(value: string): string {
+  return removeDiacritics(cleanText(value))
     .toLowerCase()
-    .replace(
-      /[^a-z]/g,
-      '',
-    );
+    .replace(/[^a-z]/g, '');
 }
 
-function matchFirst(
-  text: string,
-  expression: RegExp,
-): string | null {
+function matchFirst(text: string, expression: RegExp): string | null {
+  return text.match(expression)?.[1] ?? null;
+}
+
+function numberMatch(text: string, expression: RegExp): number | null {
+  const value = matchFirst(text, expression);
+
+  return value ? Number(value) : null;
+}
+
+function isIgnoredLine(value: string): boolean {
   return (
-    text.match(expression)?.[1] ??
-    null
-  );
-}
-
-function numberMatch(
-  text: string,
-  expression: RegExp,
-): number | null {
-  const value =
-    matchFirst(
-      text,
-      expression,
-    );
-
-  return value
-    ? Number(value)
-    : null;
-}
-
-function isIgnoredLine(
-  value: string,
-): boolean {
-  return (
-    /^Clave\s+Asignatura/i.test(
-      value,
-    ) ||
-    /^Universidad Autónoma/i.test(
-      value,
-    ) ||
-    /^Sitio Oficial/i.test(
-      value,
-    ) ||
-    /^Alma Máter/i.test(
-      value,
-    ) ||
-    /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(
-      value,
-    ) ||
-    /Planes de Estudios de la Universidad Autónoma/i.test(
-      value,
-    ) ||
-    /^https?:\/\//i.test(
-      value,
-    ) ||
+    /^Clave\s+Asignatura/i.test(value) ||
+    /^Universidad Autónoma/i.test(value) ||
+    /^Sitio Oficial/i.test(value) ||
+    /^Alma Máter/i.test(value) ||
+    /^\d{1,2}\/\d{1,2}\/\d{2,4}/.test(value) ||
+    /Planes de Estudios de la Universidad Autónoma/i.test(value) ||
+    /^https?:\/\//i.test(value) ||
     /^\d+\/\d+$/.test(value) ||
     /^Resumen$/i.test(value) ||
     /^Total HT:/i.test(value) ||
     /^Total HP:/i.test(value) ||
-    /^Total Creditos:/i.test(
-      value,
-    ) ||
+    /^Total Creditos:/i.test(value) ||
     /^Leyenda$/i.test(value) ||
-    /^HT\s*:\s*Horas/i.test(
-      value,
-    ) ||
+    /^HT\s*:\s*Horas/i.test(value) ||
     /^La barra/i.test(value) ||
-    /^entre paréntesis/i.test(
-      value,
-    )
+    /^entre paréntesis/i.test(value)
   );
 }
 
 function deduplicateSubjects(
-  subjects:
-    ParsedStudyPlanSubject[],
+  subjects: ParsedStudyPlanSubject[],
 ): ParsedStudyPlanSubject[] {
-  const map =
-    new Map<
-      string,
-      ParsedStudyPlanSubject
-    >();
+  const map = new Map<string, ParsedStudyPlanSubject>();
 
   for (const subject of subjects) {
     /*
@@ -1395,8 +1052,7 @@ function deduplicateSubjects(
      * necesitamos distinguirla por
      * sección/semestre.
      */
-    const key =
-      `${subject.type}:${subject.semester ?? 0}:${subject.code}`;
+    const key = `${subject.type}:${subject.semester ?? 0}:${subject.code}`;
 
     if (!map.has(key)) {
       map.set(key, subject);

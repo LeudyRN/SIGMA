@@ -11,6 +11,7 @@ import { StudentsWorkspace } from '@/components/students/students-workspace';
 import { AcademicStructurePanel } from '@/components/academic/academic-structure-panel';
 import type { AcademicMode } from '@/components/academic/academic-structure-panel';
 import { RoleAwareProcessPanel } from '@/components/app/role-aware-process-panel';
+import { OperationsPanel, type OperationsMode } from '@/components/operations/operations-panel';
 
 interface ModulePageProps {
   params: Promise<{ module: string }>;
@@ -61,10 +62,32 @@ export default async function ModulePlanningPage({ params }: ModulePageProps) {
   if (item.slug === 'inscripciones') return <RoleAwareProcessPanel mode="enrollments" />;
   if (item.slug === 'pagos') return <RoleAwareProcessPanel mode="payments" />;
   if (item.slug === 'facturas') return <RoleAwareProcessPanel mode="invoices" />;
+  const operationsModes = new Set<OperationsMode>([
+    'modalidades',
+    'periodos',
+    'areas-investigacion',
+    'requisitos',
+    'sustentantes',
+    'validaciones',
+    'estados-inscripcion',
+    'documentos',
+    'cuentas-bancarias',
+    'metodos-pago',
+    'transacciones',
+    'conciliaciones',
+    'proyectos-grado',
+    'docentes',
+    'asesores-jurados',
+    'configuraciones',
+    'auditoria',
+  ]);
+  if (operationsModes.has(item.slug as OperationsMode)) {
+    return <OperationsPanel mode={item.slug as OperationsMode} />;
+  }
 
   const status = item.status === 'foundation' ? 'Base técnica preparada' : 'Planificado';
   return (
-    <div className="mx-auto max-w-6xl">
+    <div className="w-full">
       <Link
         href="/app"
         className="text-muted-foreground hover:text-primary inline-flex items-center gap-2 text-sm font-semibold"

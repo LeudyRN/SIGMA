@@ -15,8 +15,14 @@ export default defineConfig({
     path: 'prisma/migrations',
   },
   datasource: {
-    url:
-      process.env.DATABASE_URL ??
-      'mysql://sigma_user:sigma_password@localhost:3306/sigma_ucotesis',
+    url: requireDatabaseUrl(),
   },
 });
+
+function requireDatabaseUrl(): string {
+  const url = process.env.DATABASE_URL?.trim();
+  if (!url) {
+    throw new Error('DATABASE_URL es obligatorio para ejecutar Prisma.');
+  }
+  return url;
+}

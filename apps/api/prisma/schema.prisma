@@ -126,6 +126,48 @@ model configuraciones {
   @@index([updated_by], map: "fk_configuraciones_usuario")
 }
 
+model cuentas_bancarias {
+  id_cuenta_bancaria BigInt                        @id @default(autoincrement()) @db.UnsignedBigInt
+  banco              String                        @db.VarChar(120)
+  numero_cuenta      String                        @unique(map: "uq_cuentas_bancarias_numero") @db.VarChar(80)
+  tipo_cuenta        cuentas_bancarias_tipo_cuenta
+  tipo_documento     String                        @db.VarChar(30)
+  documento_titular  String                        @db.VarChar(30)
+  nombre_titular     String                        @db.VarChar(200)
+  moneda             String                        @default("DOP") @db.Char(3)
+  instrucciones      String?                       @db.VarChar(1000)
+  estado             cuentas_bancarias_estado      @default(ACTIVO)
+  created_by         BigInt?                       @db.UnsignedBigInt
+  created_at         DateTime                      @default(now()) @db.Timestamp(0)
+  updated_at         DateTime                      @default(now()) @db.Timestamp(0)
+  usuarios           usuarios?                     @relation(fields: [created_by], references: [id_usuario], map: "fk_cuentas_bancarias_usuario")
+  pagos              pagos[]
+
+  @@index([estado, banco], map: "idx_cuentas_bancarias_estado")
+  @@index([created_by], map: "idx_cuentas_bancarias_usuario")
+}
+
+model comprobantes_transferencia {
+  id_comprobante BigInt                            @id @default(autoincrement()) @db.UnsignedBigInt
+  id_pago        BigInt                            @unique(map: "uq_comprobantes_transferencia_pago") @db.UnsignedBigInt
+  nombre_archivo String                            @db.VarChar(255)
+  mime_type      String                            @db.VarChar(120)
+  tamano_bytes   Int                               @db.UnsignedInt
+  hash_sha256    String                            @db.Char(64)
+  contenido      Bytes                             @db.LongBlob
+  estado         comprobantes_transferencia_estado @default(PENDIENTE)
+  observacion    String?                           @db.VarChar(500)
+  revisado_por   BigInt?                           @db.UnsignedBigInt
+  revisado_at    DateTime?                         @db.DateTime(0)
+  created_at     DateTime                          @default(now()) @db.Timestamp(0)
+  updated_at     DateTime                          @default(now()) @db.Timestamp(0)
+  pagos          pagos                             @relation(fields: [id_pago], references: [id_pago], onDelete: Cascade, map: "fk_comprobantes_transferencia_pago")
+  usuarios       usuarios?                         @relation(fields: [revisado_por], references: [id_usuario], map: "fk_comprobantes_transferencia_revisor")
+
+  @@index([estado, created_at], map: "idx_comprobantes_transferencia_estado")
+  @@index([revisado_por], map: "idx_comprobantes_transferencia_revisor")
+}
+
 model docentes {
   id_docente        BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
   id_usuario        BigInt              @unique(map: "uq_docentes_usuario") @db.UnsignedBigInt
@@ -260,18 +302,20 @@ model facultades {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model historial_academico {
-  id_historial          BigInt                                @id @default(autoincrement()) @db.UnsignedBigInt
-  id_estudiante_carrera BigInt                                @db.UnsignedBigInt
-  id_asignatura         BigInt                                @db.UnsignedBigInt
-  periodo_codigo        String                                @db.VarChar(30)
-  calificacion          Decimal?                              @db.Decimal(5, 2)
-  estado_asignatura     historial_academico_estado_asignatura
-  fuente                String?                               @db.VarChar(100)
-  fecha_actualizacion   DateTime                              @default(now()) @db.DateTime(0)
-  created_at            DateTime                              @default(now()) @db.Timestamp(0)
-  updated_at            DateTime                              @default(now()) @db.Timestamp(0)
-  asignaturas           asignaturas                           @relation(fields: [id_asignatura], references: [id_asignatura], map: "fk_historial_asignatura")
-  estudiante_carreras   estudiante_carreras                   @relation(fields: [id_estudiante_carrera], references: [id_estudiante_carrera], map: "fk_historial_ec")
+  id_historial                     BigInt                                @id @default(autoincrement()) @db.UnsignedBigInt
+  id_estudiante_carrera            BigInt                                @db.UnsignedBigInt
+  id_asignatura                    BigInt                                @db.UnsignedBigInt
+  periodo_codigo                   String                                @db.VarChar(30)
+  calificacion                     Decimal?                              @db.Decimal(5, 2)
+  calificacion_laboratorio         Decimal?                              @db.Decimal(4, 2)
+  calificacion_laboratorio_literal String?                               @db.VarChar(20)
+  estado_asignatura                historial_academico_estado_asignatura
+  fuente                           String?                               @db.VarChar(100)
+  fecha_actualizacion              DateTime                              @default(now()) @db.DateTime(0)
+  created_at                       DateTime                              @default(now()) @db.Timestamp(0)
+  updated_at                       DateTime                              @default(now()) @db.Timestamp(0)
+  asignaturas                      asignaturas                           @relation(fields: [id_asignatura], references: [id_asignatura], map: "fk_historial_asignatura")
+  estudiante_carreras              estudiante_carreras                   @relation(fields: [id_estudiante_carrera], references: [id_estudiante_carrera], map: "fk_historial_ec")
 
   @@unique([id_estudiante_carrera, id_asignatura, periodo_codigo], map: "uq_historial_registro")
   @@index([id_asignatura], map: "idx_historial_asignatura")
@@ -442,26 +486,30 @@ model ofertas {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model pagos {
-  id_pago               BigInt                  @id @default(autoincrement()) @db.UnsignedBigInt
-  id_inscripcion        BigInt                  @db.UnsignedBigInt
-  id_metodo_pago        BigInt                  @db.UnsignedBigInt
-  referencia            String                  @unique(map: "uq_pagos_referencia") @db.VarChar(100)
-  idempotency_key       String                  @unique(map: "uq_pagos_idempotency") @db.VarChar(120)
-  monto                 Decimal                 @db.Decimal(12, 2)
-  moneda                String                  @default("DOP") @db.Char(3)
-  estado                pagos_estado            @default(CREADO)
-  fecha_pago            DateTime?               @db.DateTime(0)
-  aprobado_at           DateTime?               @db.DateTime(0)
-  rechazado_at          DateTime?               @db.DateTime(0)
-  created_at            DateTime                @default(now()) @db.Timestamp(0)
-  updated_at            DateTime                @default(now()) @db.Timestamp(0)
-  conciliacion_detalles conciliacion_detalles[]
-  facturas              facturas?
-  inscripciones         inscripciones           @relation(fields: [id_inscripcion], references: [id_inscripcion], map: "fk_pagos_inscripcion")
-  metodos_pago          metodos_pago            @relation(fields: [id_metodo_pago], references: [id_metodo_pago], map: "fk_pagos_metodo")
-  transacciones_pago    transacciones_pago[]
+  id_pago                    BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion             BigInt                      @db.UnsignedBigInt
+  id_metodo_pago             BigInt                      @db.UnsignedBigInt
+  id_cuenta_bancaria         BigInt?                     @db.UnsignedBigInt
+  referencia                 String                      @unique(map: "uq_pagos_referencia") @db.VarChar(100)
+  idempotency_key            String                      @unique(map: "uq_pagos_idempotency") @db.VarChar(120)
+  monto                      Decimal                     @db.Decimal(12, 2)
+  moneda                     String                      @default("DOP") @db.Char(3)
+  estado                     pagos_estado                @default(CREADO)
+  fecha_pago                 DateTime?                   @db.DateTime(0)
+  aprobado_at                DateTime?                   @db.DateTime(0)
+  rechazado_at               DateTime?                   @db.DateTime(0)
+  created_at                 DateTime                    @default(now()) @db.Timestamp(0)
+  updated_at                 DateTime                    @default(now()) @db.Timestamp(0)
+  conciliacion_detalles      conciliacion_detalles[]
+  comprobantes_transferencia comprobantes_transferencia?
+  cuentas_bancarias          cuentas_bancarias?          @relation(fields: [id_cuenta_bancaria], references: [id_cuenta_bancaria], map: "fk_pagos_cuenta_bancaria")
+  facturas                   facturas?
+  inscripciones              inscripciones               @relation(fields: [id_inscripcion], references: [id_inscripcion], map: "fk_pagos_inscripcion")
+  metodos_pago               metodos_pago                @relation(fields: [id_metodo_pago], references: [id_metodo_pago], map: "fk_pagos_metodo")
+  transacciones_pago         transacciones_pago[]
 
   @@index([id_metodo_pago], map: "fk_pagos_metodo")
+  @@index([id_cuenta_bancaria], map: "idx_pagos_cuenta_bancaria")
   @@index([fecha_pago], map: "idx_pagos_fecha")
   @@index([id_inscripcion, estado], map: "idx_pagos_inscripcion_estado")
 }
@@ -770,6 +818,8 @@ model usuarios {
   auditoria                                          auditoria[]
   conciliaciones_pago                                conciliaciones_pago[]
   configuraciones                                    configuraciones[]
+  cuentas_bancarias                                  cuentas_bancarias[]
+  comprobantes_transferencia                         comprobantes_transferencia[]
   docentes                                           docentes?
   documentos_inscripcion                             documentos_inscripcion[]
   estudiantes                                        estudiantes?
@@ -816,6 +866,22 @@ enum configuraciones_tipo {
   JSON
   DATE
   DATETIME
+}
+
+enum cuentas_bancarias_tipo_cuenta {
+  AHORRO
+  CORRIENTE
+}
+
+enum cuentas_bancarias_estado {
+  ACTIVO
+  INACTIVO
+}
+
+enum comprobantes_transferencia_estado {
+  PENDIENTE
+  VALIDADO
+  RECHAZADO
 }
 
 enum docentes_estado {

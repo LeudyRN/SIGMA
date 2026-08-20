@@ -73,6 +73,9 @@ export class AcademicService {
       this.prisma.planes_estudio.findMany({
         include: {
           carreras: true,
+          recinto_carrera_planes: {
+            include: { recinto_carreras: true },
+          },
           plan_estudio_asignaturas: {
             include: { asignaturas: true },
             orderBy: [{ semestre: 'asc' }, { asignaturas: { codigo: 'asc' } }],
@@ -154,71 +157,60 @@ export class AcademicService {
         totalCredits: item.creditos_totales?.toNumber() ?? null,
         status: item.estado,
         studentCount: item._count.estudiante_carreras,
+        campusIds: [
+          ...new Set(
+            item.recinto_carrera_planes.map((relation) =>
+              relation.recinto_carreras.id_recinto.toString(),
+            ),
+          ),
+        ],
         subjects: item.plan_estudio_asignaturas.map((relation) => ({
-            id:
-              relation.id_asignatura.toString(),
+          id: relation.id_asignatura.toString(),
 
-            code:
-              relation.asignaturas.codigo,
+          code: relation.asignaturas.codigo,
 
-            name:
-              relation.asignaturas.nombre,
+          name: relation.asignaturas.nombre,
 
-            theoreticalHours:
-              relation.asignaturas
-                .horas_teoricas,
+          theoreticalHours: relation.asignaturas.horas_teoricas,
 
-            practicalHours:
-              relation.asignaturas
-                .horas_practicas,
+          practicalHours: relation.asignaturas.horas_practicas,
 
-            semester:
-              relation.semestre,
+          semester: relation.semestre,
 
-            mandatory:
-              relation.obligatoria,
+          mandatory: relation.obligatoria,
 
-            type:
-              relation.tipo,
+          type: relation.tipo,
 
-            prerequisiteText:
-              relation.prerrequisitos_texto,
+          prerequisiteText: relation.prerrequisitos_texto,
 
-            equivalenceText:
-              relation.equivalencias_texto,
+          equivalenceText: relation.equivalencias_texto,
 
-            credits:
-              relation.creditos_plan?.toNumber() ??
-              relation.asignaturas.creditos.toNumber(),
-              })),
-      })),
-
-        subjects: subjects.map((item) => ({
-          id: item.id_asignatura.toString(),
-
-          code: item.codigo,
-          name: item.nombre,
-
-          theoreticalHours:
-            item.horas_teoricas,
-
-          practicalHours:
-            item.horas_practicas,
+          order: relation.orden,
 
           credits:
-            item.creditos.toNumber(),
-
-          status:
-            item.estado,
-
-          studyPlanCount:
-            item._count
-              .plan_estudio_asignaturas,
-
-          historyCount:
-            item._count
-              .historial_academico,
+            relation.creditos_plan?.toNumber() ??
+            relation.asignaturas.creditos.toNumber(),
         })),
+      })),
+
+      subjects: subjects.map((item) => ({
+        id: item.id_asignatura.toString(),
+
+        code: item.codigo,
+        name: item.nombre,
+
+        theoreticalHours: item.horas_teoricas,
+
+        practicalHours: item.horas_practicas,
+
+        credits: item.creditos.toNumber(),
+
+        status: item.estado,
+
+        studyPlanCount: item._count.plan_estudio_asignaturas,
+
+        historyCount: item._count.historial_academico,
+      })),
     };
   }
 
@@ -452,6 +444,10 @@ export class AcademicService {
           semestre: item.semester,
           obligatoria: item.mandatory ?? true,
           creditos_plan: item.planCredits,
+          prerrequisitos_texto: optional(item.prerequisiteText),
+          equivalencias_texto: optional(item.equivalenceText),
+          tipo: item.type ?? 'REGULAR',
+          orden: item.order,
         })),
       }),
     ]);
@@ -464,6 +460,8 @@ export class AcademicService {
         data: {
           codigo: code(dto.code),
           nombre: dto.name.trim(),
+          horas_teoricas: dto.theoreticalHours ?? 0,
+          horas_practicas: dto.practicalHours ?? 0,
           creditos: dto.credits,
         },
       });
@@ -480,6 +478,12 @@ export class AcademicService {
         data: {
           ...(dto.code ? { codigo: code(dto.code) } : {}),
           ...(dto.name ? { nombre: dto.name.trim() } : {}),
+          ...(dto.theoreticalHours !== undefined
+            ? { horas_teoricas: dto.theoreticalHours }
+            : {}),
+          ...(dto.practicalHours !== undefined
+            ? { horas_practicas: dto.practicalHours }
+            : {}),
           ...(dto.credits !== undefined ? { creditos: dto.credits } : {}),
           ...(dto.status ? { estado: dto.status } : {}),
         },

@@ -39,11 +39,7 @@ export function NotificationCenter() {
     queryKey: ['notifications'],
     queryFn: loadNotifications,
     refetchInterval:
-      typeof document !== 'undefined' &&
-      document.visibilityState ===
-        'visible'
-        ? 20_000
-        : false,
+      typeof document !== 'undefined' && document.visibilityState === 'visible' ? 20_000 : false,
 
     refetchOnWindowFocus: true,
   });

@@ -8,6 +8,7 @@ import { EnrollmentsModule } from './modules/enrollments/enrollments.module';
 import { HealthModule } from './modules/health/health.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { StudentsModule } from './modules/students/students.module';
@@ -34,6 +35,7 @@ import { validateEnvironment } from './shared/config/environment';
     UcotesisModule,
     EnrollmentsModule,
     PaymentsModule,
+    ProjectsModule,
     NotificationsModule,
     AuditModule,
     HealthModule,

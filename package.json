@@ -9,8 +9,8 @@
     "pnpm": ">=11.0.0"
   },
   "scripts": {
-    "dev": "concurrently --kill-others-on-fail --names WEB,API --prefix-colors blue,green \"pnpm dev:web\" \"pnpm dev:api\"",
-    "dev:web": "pnpm --filter @sigma/web dev",
+    "dev": "concurrently --kill-others-on-fail --names API,WEB --prefix-colors green,blue \"pnpm dev:api\" \"pnpm dev:web\"",
+    "dev:web": "node scripts/wait-for-api.mjs && pnpm --filter @sigma/web dev",
     "dev:api": "pnpm --filter @sigma/api dev",
     "build": "pnpm -r --if-present build",
     "lint": "pnpm -r --if-present lint",
