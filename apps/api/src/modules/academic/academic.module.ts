@@ -10,13 +10,9 @@ import { StudyPlanTransferService } from './study-plan-transfer.service';
 import { StudyPlanPdfService } from './study-plan-pdf.service';
 
 @Module({
-  imports: [
-    PrismaModule,
-  ],
+  imports: [PrismaModule],
 
-  controllers: [
-    AcademicController,
-  ],
+  controllers: [AcademicController],
 
   providers: [
     AcademicService,

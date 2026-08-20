@@ -53,7 +53,6 @@ interface UploadedPdfFile {
   buffer: Buffer;
 }
 
-
 @ApiTags('Estructura académica')
 @ApiCookieAuth('sigma_access_token')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -82,10 +81,7 @@ export class AcademicController {
 
   @Patch('campuses/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateCampus(
-    @Param('id') id: string,
-    @Body() dto: UpdateCampusDto,
-  ) {
+  updateCampus(@Param('id') id: string, @Body() dto: UpdateCampusDto) {
     return this.academic.updateCampus(id, dto);
   }
 
@@ -103,10 +99,7 @@ export class AcademicController {
 
   @Patch('faculties/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateFaculty(
-    @Param('id') id: string,
-    @Body() dto: UpdateFacultyDto,
-  ) {
+  updateFaculty(@Param('id') id: string, @Body() dto: UpdateFacultyDto) {
     return this.academic.updateFaculty(id, dto);
   }
 
@@ -124,10 +117,7 @@ export class AcademicController {
 
   @Patch('schools/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateSchool(
-    @Param('id') id: string,
-    @Body() dto: UpdateSchoolDto,
-  ) {
+  updateSchool(@Param('id') id: string, @Body() dto: UpdateSchoolDto) {
     return this.academic.updateSchool(id, dto);
   }
 
@@ -145,10 +135,7 @@ export class AcademicController {
 
   @Patch('careers/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateCareer(
-    @Param('id') id: string,
-    @Body() dto: UpdateCareerDto,
-  ) {
+  updateCareer(@Param('id') id: string, @Body() dto: UpdateCareerDto) {
     return this.academic.updateCareer(id, dto);
   }
 
@@ -160,9 +147,7 @@ export class AcademicController {
 
   @Post('campus-careers')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  createCampusCareer(
-    @Body() dto: CreateCampusCareerDto,
-  ) {
+  createCampusCareer(@Body() dto: CreateCampusCareerDto) {
     return this.academic.createCampusCareer(dto);
   }
 
@@ -183,18 +168,13 @@ export class AcademicController {
 
   @Post('study-plans')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  createStudyPlan(
-    @Body() dto: CreateStudyPlanDto,
-  ) {
+  createStudyPlan(@Body() dto: CreateStudyPlanDto) {
     return this.academic.createStudyPlan(dto);
   }
 
   @Patch('study-plans/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateStudyPlan(
-    @Param('id') id: string,
-    @Body() dto: UpdateStudyPlanDto,
-  ) {
+  updateStudyPlan(@Param('id') id: string, @Body() dto: UpdateStudyPlanDto) {
     return this.academic.updateStudyPlan(id, dto);
   }
 
@@ -223,28 +203,19 @@ export class AcademicController {
     }),
   )
   @ApiOperation({
-    summary:
-      'Analizar un PDF de plan de estudios antes de importarlo',
+    summary: 'Analizar un PDF de plan de estudios antes de importarlo',
   })
-    previewStudyPlanImport(
-      @UploadedFile() file: UploadedPdfFile,
-    ) {
-      return this.studyPlanTransfer.preview(file);
-    }
+  previewStudyPlanImport(@UploadedFile() file: UploadedPdfFile) {
+    return this.studyPlanTransfer.preview(file);
+  }
 
   @Post('study-plans/import/confirm')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
   @ApiOperation({
-    summary:
-      'Confirmar la importación del plan de estudios',
+    summary: 'Confirmar la importación del plan de estudios',
   })
-  confirmStudyPlanImport(
-    @Body() dto: ConfirmStudyPlanImportDto,
-  ) {
-    return this.studyPlanTransfer.confirm(
-      dto.token,
-      dto.campusIds,
-    );
+  confirmStudyPlanImport(@Body() dto: ConfirmStudyPlanImportDto) {
+    return this.studyPlanTransfer.confirm(dto.token, dto.campusIds);
   }
 
   @Get('study-plans/:id/export')
@@ -252,16 +223,10 @@ export class AcademicController {
   @ApiOperation({
     summary: 'Exportar un plan de estudios a PDF',
   })
-  async exportStudyPlan(
-    @Param('id') id: string,
-    @Res() response: Response,
-  ) {
+  async exportStudyPlan(@Param('id') id: string, @Res() response: Response) {
     const pdf = await this.studyPlanPdf.exportPlan(id);
 
-    response.setHeader(
-      'Content-Type',
-      'application/pdf',
-    );
+    response.setHeader('Content-Type', 'application/pdf');
 
     response.setHeader(
       'Content-Disposition',
@@ -279,10 +244,7 @@ export class AcademicController {
 
   @Patch('subjects/:id')
   @Permissions('ACADEMICO_CATALOGOS_GESTIONAR')
-  updateSubject(
-    @Param('id') id: string,
-    @Body() dto: UpdateSubjectDto,
-  ) {
+  updateSubject(@Param('id') id: string, @Body() dto: UpdateSubjectDto) {
     return this.academic.updateSubject(id, dto);
   }
 

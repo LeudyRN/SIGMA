@@ -151,6 +151,22 @@ export class UpdateStudyPlanDto extends PartialType(CreateStudyPlanDto) {
 }
 
 export class CreateSubjectDto extends BaseAcademicCatalogDto {
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(999)
+  theoreticalHours?: number;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(999)
+  practicalHours?: number;
+
   @ApiProperty()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -189,6 +205,31 @@ export class StudyPlanSubjectDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   planCredits?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  prerequisiteText?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  equivalenceText?: string;
+
+  @ApiPropertyOptional({ enum: ['REGULAR', 'OPTATIVA', 'TESIS'] })
+  @IsOptional()
+  @IsIn(['REGULAR', 'OPTATIVA', 'TESIS'])
+  type?: 'REGULAR' | 'OPTATIVA' | 'TESIS';
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  @Max(999)
+  order?: number;
 }
 
 export class AssignStudyPlanSubjectsDto {

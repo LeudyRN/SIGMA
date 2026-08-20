@@ -86,7 +86,14 @@ export class StudentProcessService {
               },
             },
             pagos: {
-              include: { metodos_pago: true, facturas: true },
+              include: {
+                metodos_pago: true,
+                facturas: true,
+                cuentas_bancarias: true,
+                comprobantes_transferencia: {
+                  select: { estado: true, observacion: true },
+                },
+              },
               orderBy: { created_at: 'desc' },
             },
           },
@@ -117,6 +124,12 @@ export class StudentProcessService {
           method: payment.metodos_pago.nombre,
           amount: payment.monto.toNumber(),
           createdAt: payment.created_at,
+          proofStatus: payment.comprobantes_transferencia?.estado ?? null,
+          proofObservation:
+            payment.comprobantes_transferencia?.observacion ?? null,
+          bankAccount: payment.cuentas_bancarias
+            ? `${payment.cuentas_bancarias.banco} · ${payment.cuentas_bancarias.numero_cuenta}`
+            : null,
           invoice: payment.facturas
             ? {
                 number: payment.facturas.numero_factura,

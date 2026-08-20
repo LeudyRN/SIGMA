@@ -1,6 +1,6 @@
 'use client';
 
-import { ShieldCheck } from 'lucide-react';
+import { OperationsPanel } from '@/components/operations/operations-panel';
 import { StudentProcessPanel } from '@/components/students/student-process-panel';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -11,23 +11,11 @@ export function RoleAwareProcessPanel({ mode }: { mode: ProcessMode }) {
   if (user?.roles.some((role) => role.code === 'ESTUDIANTE')) {
     return <StudentProcessPanel mode={mode} />;
   }
-  const names = {
-    offers: 'Ofertas',
-    enrollments: 'Inscripciones',
-    payments: 'Pagos',
-    invoices: 'Facturas',
-  };
-  return (
-    <section className="mx-auto max-w-6xl rounded-3xl border bg-white p-8 shadow-sm">
-      <ShieldCheck className="size-8 text-blue-700" />
-      <p className="mt-5 text-sm font-bold tracking-widest text-blue-700 uppercase">
-        Área autorizada
-      </p>
-      <h1 className="mt-1 text-3xl font-bold">{names[mode]}</h1>
-      <p className="mt-3 max-w-2xl text-slate-600">
-        Esta sesión muestra únicamente las operaciones habilitadas para{' '}
-        {user?.roles.map((role) => role.name).join(', ') || 'el rol actual'}.
-      </p>
-    </section>
-  );
+  const operationalMode = {
+    offers: 'ofertas',
+    enrollments: 'inscripciones',
+    payments: 'pagos',
+    invoices: 'facturas',
+  } as const;
+  return <OperationsPanel mode={operationalMode[mode]} />;
 }

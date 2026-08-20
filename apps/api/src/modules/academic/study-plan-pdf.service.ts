@@ -1,371 +1,419 @@
-import {
-  BadRequestException,
-  Injectable,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 
 import PDFDocument from 'pdfkit';
 
+import type {
+  planes_estudioDefaultArgs,
+  planes_estudioGetPayload,
+} from '../../generated/prisma/models/planes_estudio';
 import { PrismaService } from '../../prisma/prisma.service';
+
+const PLAN_QUERY = {
+  include: {
+    carreras: {
+      include: {
+        escuelas: {
+          include: {
+            facultades: true,
+          },
+        },
+      },
+    },
+    plan_estudio_asignaturas: {
+      include: {
+        asignaturas: true,
+      },
+      orderBy: [
+        { semestre: 'asc' },
+        { orden: 'asc' },
+        { asignaturas: { codigo: 'asc' } },
+      ],
+    },
+  },
+} satisfies planes_estudioDefaultArgs;
+
+type StudyPlanExport = planes_estudioGetPayload<typeof PLAN_QUERY>;
+type StudyPlanSubject = StudyPlanExport['plan_estudio_asignaturas'][number];
+type CellAlignment = 'left' | 'center' | 'right';
+
+interface TableColumn {
+  label: string;
+  width: number;
+  align?: CellAlignment;
+}
+
+interface CellStyle {
+  fill?: string;
+  font?: 'Helvetica' | 'Helvetica-Bold';
+  fontSize?: number;
+  minimumHeight?: number;
+  textColor?: string;
+}
+
+const PAGE_MARGIN = 32;
+const CONTENT_WIDTH = 548;
+const PAGE_BOTTOM = 722;
+const COLORS = {
+  accent: '#145DA0',
+  accentDark: '#0B365D',
+  border: '#C9D4DF',
+  headerFill: '#EAF2F8',
+  muted: '#5D6B78',
+  rowAlternate: '#F8FAFC',
+  summaryFill: '#F1F6FA',
+  text: '#17212B',
+  white: '#FFFFFF',
+};
+
+const TABLE_COLUMNS: TableColumn[] = [
+  { label: 'Clave', width: 50 },
+  { label: 'Asignatura', width: 144 },
+  { label: 'HT', width: 28, align: 'center' },
+  { label: 'HP', width: 28, align: 'center' },
+  { label: 'CR', width: 30, align: 'center' },
+  { label: 'Prerrequisitos', width: 150 },
+  { label: 'Equivalencias', width: 118 },
+];
 
 @Injectable()
 export class StudyPlanPdfService {
-  constructor(
-    private readonly prisma: PrismaService,
-  ) {}
+  constructor(private readonly prisma: PrismaService) {}
 
-  async exportPlan(
-    planId: string,
-  ): Promise<Buffer> {
-    const plan =
-      await this.prisma.planes_estudio.findUnique({
-        where: {
-          id_plan_estudio: toBigInt(planId),
-        },
-
-        include: {
-          carreras: {
-            include: {
-              escuelas: {
-                include: {
-                  facultades: true,
-                },
-              },
-            },
-          },
-
-          plan_estudio_asignaturas: {
-            include: {
-              asignaturas: true,
-            },
-
-            orderBy: [
-              {
-                semestre: 'asc',
-              },
-              {
-                orden: 'asc',
-              },
-              {
-                asignaturas: {
-                  codigo: 'asc',
-                },
-              },
-            ],
-          },
-        },
-      });
+  async exportPlan(planId: string): Promise<Buffer> {
+    const plan = await this.prisma.planes_estudio.findUnique({
+      where: {
+        id_plan_estudio: toBigInt(planId),
+      },
+      ...PLAN_QUERY,
+    });
 
     if (!plan) {
-      throw new BadRequestException(
-        'Plan de estudios no encontrado.',
-      );
+      throw new BadRequestException('Plan de estudios no encontrado.');
     }
 
-    return new Promise<Buffer>(
-      (resolve, reject) => {
-        const doc = new PDFDocument({
-          size: 'LETTER',
-          margins: {
-            top: 36,
-            bottom: 36,
-            left: 30,
-            right: 30,
-          },
-        });
+    return new Promise<Buffer>((resolve, reject) => {
+      const doc = new PDFDocument({
+        size: 'LETTER',
+        bufferPages: true,
+        margins: {
+          top: PAGE_MARGIN,
+          bottom: 44,
+          left: PAGE_MARGIN,
+          right: PAGE_MARGIN,
+        },
+      });
+      const chunks: Buffer[] = [];
 
-        const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Uint8Array) => {
+        chunks.push(Buffer.from(chunk));
+      });
+      doc.on('end', () => {
+        resolve(Buffer.concat(chunks));
+      });
+      doc.on('error', reject);
 
-        doc.on('data', (chunk) => {
-          chunks.push(
-            Buffer.isBuffer(chunk)
-              ? chunk
-              : Buffer.from(chunk),
-          );
-        });
+      const regular = plan.plan_estudio_asignaturas.filter(
+        (item) => item.tipo === 'REGULAR',
+      );
+      const optional = plan.plan_estudio_asignaturas.filter(
+        (item) => item.tipo === 'OPTATIVA',
+      );
+      const thesis = plan.plan_estudio_asignaturas.filter(
+        (item) => item.tipo === 'TESIS',
+      );
 
-        doc.on('end', () => {
-          resolve(Buffer.concat(chunks));
-        });
+      renderDocumentHeader(doc, plan);
+      renderSubjects(doc, plan, regular);
 
-        doc.on('error', reject);
+      if (thesis.length) {
+        renderTableSection(doc, plan, 'Tesis de grado', thesis);
+      }
 
-        renderHeader(doc, plan);
+      if (optional.length) {
+        renderSubjects(doc, plan, optional, 'Asignaturas optativas');
+      }
 
-        const regular =
-          plan.plan_estudio_asignaturas.filter(
-            (item) =>
-              item.tipo === 'REGULAR',
-          );
-
-        const optional =
-          plan.plan_estudio_asignaturas.filter(
-            (item) =>
-              item.tipo === 'OPTATIVA',
-          );
-
-        const thesis =
-          plan.plan_estudio_asignaturas.filter(
-            (item) =>
-              item.tipo === 'TESIS',
-          );
-
-        renderSubjects(doc, regular);
-
-        if (thesis.length) {
-          title(doc, 'Tesis de Grado');
-
-          tableHeader(doc);
-
-          thesis.forEach((item) =>
-            row(doc, item),
-          );
-        }
-
-        if (optional.length) {
-          doc.moveDown(1.5);
-
-          doc
-            .font('Helvetica-Bold')
-            .fontSize(14)
-            .text('Asignaturas Optativas');
-
-          doc.moveDown(0.8);
-
-          renderSubjects(doc, optional);
-        }
-
-        renderSummary(doc, plan);
-
-        doc.end();
-      },
-    );
+      // Las optativas disponibles no se suman como si todas fueran obligatorias.
+      renderSummary(doc, plan, [...regular, ...thesis]);
+      renderPageFooters(doc, plan);
+      doc.end();
+    });
   }
 }
 
-function renderHeader(
+function renderDocumentHeader(
   doc: PDFKit.PDFDocument,
-  plan: any,
+  plan: StudyPlanExport,
 ): void {
-  const faculty =
-    plan.carreras.escuelas.facultades.nombre;
-
-  const school =
-    plan.carreras.escuelas.nombre;
+  const faculty = plan.carreras.escuelas.facultades.nombre;
+  const school = plan.carreras.escuelas.nombre;
+  const leftWidth = 370;
+  const rightX = PAGE_MARGIN + 390;
+  const rightWidth = CONTENT_WIDTH - 390;
+  const top = PAGE_MARGIN;
 
   doc
+    .fillColor(COLORS.accentDark)
     .font('Helvetica-Bold')
-    .fontSize(18)
-    .text(
-      'Universidad Autónoma de Santo Domingo',
-    );
-
-  doc.moveDown(0.35);
+    .fontSize(16)
+    .text('Universidad Autónoma de Santo Domingo', PAGE_MARGIN, top, {
+      width: leftWidth,
+    });
+  doc.moveDown(0.3);
+  doc.fontSize(11).text(faculty, { width: leftWidth });
+  doc
+    .fillColor(COLORS.text)
+    .font('Helvetica')
+    .fontSize(9.5)
+    .text(school, { width: leftWidth })
+    .text(plan.carreras.nombre, { width: leftWidth });
+  const leftBottom = doc.y;
 
   doc
+    .fillColor(COLORS.muted)
+    .font('Helvetica')
+    .fontSize(8)
+    .text('PLAN DE ESTUDIOS', rightX, top + 2, {
+      align: 'right',
+      width: rightWidth,
+    });
+  doc
+    .fillColor(COLORS.accentDark)
+    .font('Helvetica-Bold')
     .fontSize(13)
-    .text(faculty);
+    .text(plan.codigo, rightX, doc.y + 2, {
+      align: 'right',
+      width: rightWidth,
+    });
+  doc
+    .fillColor(COLORS.text)
+    .font('Helvetica')
+    .fontSize(9)
+    .text(`Carrera ${plan.carreras.codigo}`, rightX, doc.y + 3, {
+      align: 'right',
+      width: rightWidth,
+    });
+  const rightBottom = doc.y;
+  const dividerY = Math.max(leftBottom, rightBottom) + 11;
 
   doc
-    .font('Helvetica')
-    .fontSize(11)
-    .text(school)
-    .text(plan.carreras.nombre);
+    .moveTo(PAGE_MARGIN, dividerY)
+    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, dividerY)
+    .lineWidth(1.2)
+    .strokeColor(COLORS.accent)
+    .stroke();
+  doc.y = dividerY + 12;
+}
 
-  doc.moveUp(2.5);
+function renderContinuationHeader(
+  doc: PDFKit.PDFDocument,
+  plan: StudyPlanExport,
+): void {
+  const y = PAGE_MARGIN;
 
   doc
+    .fillColor(COLORS.accentDark)
+    .font('Helvetica-Bold')
+    .fontSize(8.5)
+    .text('Universidad Autónoma de Santo Domingo', PAGE_MARGIN, y, {
+      width: 330,
+    });
+  doc
+    .fillColor(COLORS.muted)
     .font('Helvetica')
-    .fontSize(10)
+    .fontSize(8)
     .text(
-      `Plan de estudios: ${plan.codigo}`,
-      350,
-      doc.y,
+      `Plan ${plan.codigo} - ${plan.carreras.codigo}`,
+      PAGE_MARGIN + 350,
+      y,
       {
         align: 'right',
+        width: CONTENT_WIDTH - 350,
       },
     );
-
   doc
-    .text(
-      plan.carreras.codigo,
-      {
-        align: 'right',
-      },
-    );
-
-  doc.moveDown(2);
+    .moveTo(PAGE_MARGIN, y + 14)
+    .lineTo(PAGE_MARGIN + CONTENT_WIDTH, y + 14)
+    .lineWidth(0.7)
+    .strokeColor(COLORS.border)
+    .stroke();
+  doc.y = y + 24;
 }
 
 function renderSubjects(
   doc: PDFKit.PDFDocument,
-  subjects: any[],
+  plan: StudyPlanExport,
+  subjects: StudyPlanSubject[],
+  category?: string,
 ): void {
-  const grouped = new Map<number, any[]>();
+  const grouped = new Map<number, StudyPlanSubject[]>();
 
   for (const subject of subjects) {
-    const semester =
-      subject.semestre ?? 0;
-
-    grouped.set(
-      semester,
-      [
-        ...(grouped.get(semester) ?? []),
-        subject,
-      ],
-    );
+    const semester = subject.semestre ?? 0;
+    grouped.set(semester, [...(grouped.get(semester) ?? []), subject]);
   }
 
-  for (const [
-    semester,
-    values,
-  ] of grouped) {
-    ensurePage(doc, 150);
+  for (const [semester, values] of grouped) {
+    const semesterLabel = semester
+      ? `${semesterName(semester)} semestre`
+      : 'Sin semestre asignado';
+    const sectionTitle = category
+      ? `${category} - ${semesterLabel}`
+      : semesterLabel;
 
-    if (semester) {
-      title(
-        doc,
-        `${semesterName(semester)} Semestre`,
-      );
-    }
-
-    tableHeader(doc);
-
-    for (const value of values) {
-      row(doc, value);
-    }
-
-    renderSemesterTotal(doc, values);
-
-    doc.moveDown(0.8);
+    renderTableSection(doc, plan, sectionTitle, values);
   }
 }
 
-function title(
+function renderTableSection(
   doc: PDFKit.PDFDocument,
-  value: string,
+  plan: StudyPlanExport,
+  sectionTitle: string,
+  subjects: StudyPlanSubject[],
 ): void {
+  startTableSection(doc, plan, sectionTitle, false);
+
+  subjects.forEach((subject, index) => {
+    const values = subjectValues(subject);
+    const rowHeight = measureRowHeight(doc, values);
+
+    if (!fitsOnPage(doc, rowHeight)) {
+      addContentPage(doc, plan);
+      startTableSection(doc, plan, sectionTitle, true);
+    }
+
+    drawCells(doc, values, {
+      fill: index % 2 === 1 ? COLORS.rowAlternate : COLORS.white,
+    });
+  });
+
+  if (!fitsOnPage(doc, 27)) {
+    addContentPage(doc, plan);
+    startTableSection(doc, plan, sectionTitle, true);
+  }
+
+  renderSemesterTotal(doc, subjects);
+  doc.y += 12;
+}
+
+function startTableSection(
+  doc: PDFKit.PDFDocument,
+  plan: StudyPlanExport,
+  sectionTitle: string,
+  continuation: boolean,
+): void {
+  if (!fitsOnPage(doc, 66)) {
+    addContentPage(doc, plan);
+  }
+
+  const label = continuation ? `${sectionTitle} (continuación)` : sectionTitle;
+  const y = doc.y;
+
   doc
+    .roundedRect(PAGE_MARGIN, y, CONTENT_WIDTH, 24, 3)
+    .fillColor(COLORS.accent)
+    .fill();
+  doc
+    .fillColor(COLORS.white)
     .font('Helvetica-Bold')
-    .fontSize(11)
-    .text(value);
-
-  doc.moveDown(0.45);
+    .fontSize(10)
+    .text(label, PAGE_MARGIN + 9, y + 6, {
+      height: 13,
+      width: CONTENT_WIDTH - 18,
+    });
+  doc.y = y + 28;
+  drawTableHeader(doc);
 }
 
-const widths = [
-  55,
-  155,
-  35,
-  35,
-  35,
-  155,
-  110,
-];
-
-function tableHeader(
-  doc: PDFKit.PDFDocument,
-): void {
-  ensurePage(doc, 70);
-
-  const values = [
-    'Clave',
-    'Asignatura',
-    'HT',
-    'HP',
-    'CR',
-    'Prerrequisitos',
-    'Equivalencias',
-  ];
-
+function drawTableHeader(doc: PDFKit.PDFDocument): void {
   drawCells(
     doc,
-    values,
-    true,
+    TABLE_COLUMNS.map((column) => column.label),
+    {
+      fill: COLORS.headerFill,
+      font: 'Helvetica-Bold',
+      fontSize: 7.2,
+      minimumHeight: 25,
+      textColor: COLORS.accentDark,
+    },
   );
 }
 
-function row(
-  doc: PDFKit.PDFDocument,
-  relation: any,
-): void {
-  const subject =
-    relation.asignaturas;
+function subjectValues(relation: StudyPlanSubject): string[] {
+  const subject = relation.asignaturas;
 
-  drawCells(doc, [
+  return [
     subject.codigo,
     subject.nombre,
+    String(subject.horas_teoricas ?? 0),
+    String(subject.horas_practicas ?? 0),
+    String(relation.creditos_plan ?? subject.creditos),
+    relation.prerrequisitos_texto ?? '',
+    relation.equivalencias_texto ?? '',
+  ];
+}
 
-    String(
-      subject.horas_teoricas ?? 0,
+function measureRowHeight(doc: PDFKit.PDFDocument, values: string[]): number {
+  doc.font('Helvetica').fontSize(7.4);
+
+  return Math.max(
+    24,
+    ...values.map(
+      (value, index) =>
+        doc.heightOfString(String(value), {
+          lineGap: 0.6,
+          width: TABLE_COLUMNS[index].width - 8,
+        }) + 9,
     ),
-
-    String(
-      subject.horas_practicas ?? 0,
-    ),
-
-    String(
-      relation.creditos_plan ??
-        subject.creditos,
-    ),
-
-    relation.prerrequisitos_texto ??
-      '',
-
-    relation.equivalencias_texto ??
-      '',
-  ]);
+  );
 }
 
 function drawCells(
   doc: PDFKit.PDFDocument,
   values: string[],
-  header = false,
+  style: CellStyle = {},
 ): void {
-  const startX = doc.page.margins.left;
   const startY = doc.y;
+  const font = style.font ?? 'Helvetica';
+  const fontSize = style.fontSize ?? 7.4;
+
+  doc.font(font).fontSize(fontSize);
 
   const height = Math.max(
-    26,
-    ...values.map((value, index) =>
-      doc.heightOfString(
-        String(value),
-        {
-          width: widths[index] - 8,
-        },
-      ) + 10,
+    style.minimumHeight ?? 24,
+    ...values.map(
+      (value, index) =>
+        doc.heightOfString(String(value), {
+          lineGap: 0.6,
+          width: TABLE_COLUMNS[index].width - 8,
+        }) + 9,
     ),
   );
-
-  ensurePage(doc, height + 10);
-
-  let x = startX;
-
-  doc
-    .font(
-      header
-        ? 'Helvetica-Bold'
-        : 'Helvetica',
-    )
-    .fontSize(8);
+  let x = PAGE_MARGIN;
 
   values.forEach((value, index) => {
-    const width = widths[index];
+    const column = TABLE_COLUMNS[index];
+    const text = String(value);
+    const textHeight = doc.heightOfString(text, {
+      lineGap: 0.6,
+      width: column.width - 8,
+    });
+    const textY = startY + Math.max(4, (height - textHeight) / 2);
 
     doc
-      .rect(x, startY, width, height)
-      .stroke('#D5D9DE');
-
-    doc.text(
-      String(value),
-      x + 4,
-      startY + 5,
-      {
-        width: width - 8,
-        height: height - 8,
-      },
-    );
-
-    x += width;
+      .rect(x, startY, column.width, height)
+      .fillAndStroke(style.fill ?? COLORS.white, COLORS.border);
+    doc
+      .fillColor(style.textColor ?? COLORS.text)
+      .font(font)
+      .fontSize(fontSize)
+      .text(text, x + 4, textY, {
+        align: column.align ?? 'left',
+        height: height - 7,
+        lineGap: 0.6,
+        width: column.width - 8,
+      });
+    x += column.width;
   });
 
   doc.y = startY + height;
@@ -373,136 +421,165 @@ function drawCells(
 
 function renderSemesterTotal(
   doc: PDFKit.PDFDocument,
-  values: any[],
+  values: StudyPlanSubject[],
 ): void {
   const ht = values.reduce(
-    (sum, item) =>
-      sum +
-      Number(
-        item.asignaturas
-          .horas_teoricas ?? 0,
-      ),
+    (sum, item) => sum + Number(item.asignaturas.horas_teoricas ?? 0),
     0,
   );
-
   const hp = values.reduce(
-    (sum, item) =>
-      sum +
-      Number(
-        item.asignaturas
-          .horas_practicas ?? 0,
-      ),
+    (sum, item) => sum + Number(item.asignaturas.horas_practicas ?? 0),
     0,
   );
-
   const credits = values.reduce(
     (sum, item) =>
-      sum +
-      Number(
-        item.creditos_plan ??
-          item.asignaturas.creditos,
-      ),
+      sum + Number(item.creditos_plan ?? item.asignaturas.creditos),
     0,
   );
 
-  drawCells(doc, [
-    '',
-    '',
-    String(ht),
-    String(hp),
-    String(credits),
-    '',
-    '',
-  ]);
+  drawCells(
+    doc,
+    ['', 'Totales', String(ht), String(hp), String(credits), '', ''],
+    {
+      fill: COLORS.summaryFill,
+      font: 'Helvetica-Bold',
+      fontSize: 7.4,
+      minimumHeight: 25,
+      textColor: COLORS.accentDark,
+    },
+  );
 }
 
 function renderSummary(
   doc: PDFKit.PDFDocument,
-  plan: any,
+  plan: StudyPlanExport,
+  requiredSubjects: StudyPlanSubject[],
 ): void {
-  const subjects =
-    plan.plan_estudio_asignaturas;
-
-  const ht = subjects.reduce(
-    (sum: number, item: any) =>
-      sum +
-      Number(
-        item.asignaturas
-          .horas_teoricas ?? 0,
-      ),
+  const ht = requiredSubjects.reduce(
+    (sum, item) => sum + Number(item.asignaturas.horas_teoricas ?? 0),
     0,
   );
-
-  const hp = subjects.reduce(
-    (sum: number, item: any) =>
-      sum +
-      Number(
-        item.asignaturas
-          .horas_practicas ?? 0,
-      ),
+  const hp = requiredSubjects.reduce(
+    (sum, item) => sum + Number(item.asignaturas.horas_practicas ?? 0),
     0,
   );
-
-  const credits = subjects.reduce(
-    (sum: number, item: any) =>
-      sum +
-      Number(
-        item.creditos_plan ??
-          item.asignaturas.creditos,
-      ),
+  const calculatedCredits = requiredSubjects.reduce(
+    (sum, item) =>
+      sum + Number(item.creditos_plan ?? item.asignaturas.creditos),
     0,
   );
+  const credits = plan.creditos_totales
+    ? Number(plan.creditos_totales)
+    : calculatedCredits;
 
-  doc.moveDown(1.5);
+  if (!fitsOnPage(doc, 132)) {
+    addContentPage(doc, plan);
+  }
 
-  ensurePage(doc, 120);
+  const startY = doc.y;
 
   doc
+    .roundedRect(PAGE_MARGIN, startY, CONTENT_WIDTH, 118, 4)
+    .fillAndStroke(COLORS.summaryFill, COLORS.border);
+  doc
+    .fillColor(COLORS.accentDark)
     .font('Helvetica-Bold')
     .fontSize(11)
-    .text('Resumen');
+    .text('Resumen del plan', PAGE_MARGIN + 12, startY + 11, {
+      width: CONTENT_WIDTH - 24,
+    });
+
+  const statY = startY + 36;
+  const statWidth = 92;
+  const statGap = 10;
+  const stats = [
+    ['HT', formatNumber(ht)],
+    ['HP', formatNumber(hp)],
+    ['Créditos', formatNumber(credits)],
+  ];
+
+  stats.forEach(([label, value], index) => {
+    const x = PAGE_MARGIN + 12 + index * (statWidth + statGap);
+
+    doc
+      .fillColor(COLORS.muted)
+      .font('Helvetica')
+      .fontSize(7.5)
+      .text(label, x, statY, { width: statWidth });
+    doc
+      .fillColor(COLORS.accentDark)
+      .font('Helvetica-Bold')
+      .fontSize(14)
+      .text(value, x, statY + 12, { width: statWidth });
+  });
 
   doc
-    .font('Helvetica')
-    .fontSize(10)
-    .text(`Total HT: ${ht}`)
-    .text(`Total HP: ${hp}`)
-    .text(
-      `Total Créditos: ${credits}`,
-    );
-
-  doc.moveDown();
-
-  doc
+    .fillColor(COLORS.accentDark)
     .font('Helvetica-Bold')
-    .text('Leyenda');
-
+    .fontSize(8)
+    .text('Leyenda', PAGE_MARGIN + 326, statY, { width: 198 });
   doc
+    .fillColor(COLORS.text)
     .font('Helvetica')
+    .fontSize(7.5)
     .text(
-      'HT: Horas Teóricas | HP: Horas Prácticas | CR: Créditos',
-    )
-    .text(
-      'La barra (/) en los prerrequisitos indica "o", la coma indica "y". Los prerrequisitos encerrados entre paréntesis () son co-requisitos.',
+      'HT: Horas Teóricas | HP: Horas Prácticas | CR: Créditos\n' +
+        'En prerrequisitos, la barra (/) indica "o" y la coma indica "y". ' +
+        'Los códigos entre paréntesis son co-requisitos.',
+      PAGE_MARGIN + 326,
+      statY + 13,
+      { lineGap: 1, width: 198 },
     );
+  doc.y = startY + 130;
 }
 
-function ensurePage(
+function renderPageFooters(
   doc: PDFKit.PDFDocument,
-  required: number,
+  plan: StudyPlanExport,
 ): void {
-  const limit =
-    doc.page.height -
-    doc.page.margins.bottom;
+  const range = doc.bufferedPageRange();
 
-  if (doc.y + required > limit) {
-    doc.addPage();
+  for (let index = range.start; index < range.start + range.count; index += 1) {
+    doc.switchToPage(index);
+    const footerY = PAGE_BOTTOM + 12;
+
+    doc
+      .moveTo(PAGE_MARGIN, footerY - 6)
+      .lineTo(PAGE_MARGIN + CONTENT_WIDTH, footerY - 6)
+      .lineWidth(0.5)
+      .strokeColor(COLORS.border)
+      .stroke();
+    doc
+      .fillColor(COLORS.muted)
+      .font('Helvetica')
+      .fontSize(7.5)
+      .text(`Plan ${plan.codigo}`, PAGE_MARGIN, footerY, {
+        lineBreak: false,
+        width: 150,
+      });
+    doc.text(
+      `Página ${index - range.start + 1} de ${range.count}`,
+      432,
+      footerY,
+      {
+        align: 'right',
+        lineBreak: false,
+        width: 148,
+      },
+    );
   }
 }
 
-function semesterName(
-  semester: number,
-): string {
+function addContentPage(doc: PDFKit.PDFDocument, plan: StudyPlanExport): void {
+  doc.addPage();
+  renderContinuationHeader(doc, plan);
+}
+
+function fitsOnPage(doc: PDFKit.PDFDocument, requiredHeight: number): boolean {
+  return doc.y + requiredHeight <= PAGE_BOTTOM;
+}
+
+function semesterName(semester: number): string {
   const names = [
     '',
     'Primer',
@@ -519,20 +596,17 @@ function semesterName(
     'Duodécimo',
   ];
 
-  return (
-    names[semester] ??
-    `${semester}.º`
-  );
+  return names[semester] ?? `${semester}.º`;
 }
 
-function toBigInt(
-  value: string,
-): bigint {
+function formatNumber(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(2);
+}
+
+function toBigInt(value: string): bigint {
   try {
     return BigInt(value);
   } catch {
-    throw new BadRequestException(
-      'Plan de estudios inválido.',
-    );
+    throw new BadRequestException('Plan de estudios inválido.');
   }
 }

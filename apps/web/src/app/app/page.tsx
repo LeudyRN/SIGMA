@@ -25,7 +25,7 @@ export default function AppOverviewPage() {
   const visibleModules = visibleCatalog.flatMap((group) => group.modules);
   const prepared = visibleModules.filter((module) => module.status !== 'planned').length;
   return (
-    <div className="mx-auto max-w-[96rem]">
+    <div className="w-full">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-primary text-sm font-bold tracking-[0.14em] uppercase">General</p>

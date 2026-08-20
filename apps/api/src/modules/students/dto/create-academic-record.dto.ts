@@ -35,7 +35,17 @@ export class CreateAcademicRecordDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   @Max(100)
-  grade?: number;
+  grade?: number | null;
+
+  @ApiPropertyOptional({
+    description: 'Componente práctico sobre 30 puntos. Se presenta como Lxx.',
+    example: 23,
+  })
+  @IsOptional()
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(30)
+  laboratoryGrade?: number | null;
 
   @ApiProperty({ enum: ACADEMIC_STATUSES })
   @IsIn(ACADEMIC_STATUSES)

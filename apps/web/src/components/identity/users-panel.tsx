@@ -2,12 +2,15 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LoaderCircle, Pencil, Plus, Search, Trash2, UserRoundCog } from 'lucide-react';
+import { LoaderCircle, Pencil, Plus, Trash2, UserRoundCog } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
 import { z } from 'zod';
 import { Button } from '@/components/ui/button';
+import { EntityDialog } from '@/components/ui/entity-dialog';
+import { Pagination, usePagination } from '@/components/ui/pagination';
+import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
 import { apiFetch, readApiError } from '@/lib/api';
 
 interface Role {
@@ -53,6 +56,8 @@ async function getJson<T>(path: string): Promise<T> {
 export function UsersPanel() {
   const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
+  const [roleFilter, setRoleFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [editing, setEditing] = useState<UserItem | null>(null);
   const [formOpen, setFormOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
@@ -83,6 +88,13 @@ export function UsersPanel() {
     roles.data?.items.filter(
       (role) => role.status !== 'INACTIVO' && !['ADMIN', 'ESTUDIANTE'].includes(role.code),
     ) ?? [];
+  const filteredUsers =
+    users.data?.items.filter(
+      (user) =>
+        (!roleFilter || user.roles.some((role) => role.id === roleFilter)) &&
+        (!statusFilter || user.status === statusFilter),
+    ) ?? [];
+  const pagination = usePagination(filteredUsers);
 
   const saveUser = useMutation({
     mutationFn: async (values: UserFormValues) => {
@@ -197,7 +209,7 @@ export function UsersPanel() {
   }
 
   return (
-    <section className="mx-auto w-full max-w-7xl space-y-4 sm:space-y-6">
+    <section className="w-full space-y-4 sm:space-y-6">
       <div className="flex flex-col gap-4 rounded-3xl border bg-white p-6 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-sm font-bold tracking-widest text-blue-700 uppercase">
@@ -214,23 +226,14 @@ export function UsersPanel() {
         </Button>
       </div>
 
-      {formOpen && (
-        <form
-          onSubmit={form.handleSubmit(submitUser)}
-          className="rounded-3xl border bg-white p-6 shadow-sm"
-        >
-          <div className="mb-5 flex items-center justify-between">
-            <h2 className="text-xl font-bold text-slate-950">
-              {editing ? 'Editar usuario' : 'Nuevo usuario'}
-            </h2>
-            <button
-              type="button"
-              onClick={closeForm}
-              className="text-sm font-semibold text-slate-500"
-            >
-              Cerrar
-            </button>
-          </div>
+      <EntityDialog
+        open={formOpen}
+        onClose={closeForm}
+        title={editing ? 'Editar usuario' : 'Nuevo usuario'}
+        description="Completa los datos reales de la cuenta institucional y asigna su rol operativo."
+        size="lg"
+      >
+        <form onSubmit={form.handleSubmit(submitUser)} className="space-y-5">
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <Field label="Código de empleado" error={form.formState.errors.employeeCode?.message}>
               <input
@@ -293,24 +296,44 @@ export function UsersPanel() {
             </Button>
           </div>
         </form>
-      )}
+      </EntityDialog>
 
-      <div className="rounded-3xl border bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b p-5 sm:flex-row sm:items-center">
-          <div className="relative max-w-xl flex-1">
-            <Search className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-slate-400" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Buscar por nombre, correo o código de empleado"
-              className="h-11 w-full rounded-xl border pr-3 pl-10"
-            />
-          </div>
-          <span className="text-sm font-semibold text-slate-500">
-            {users.data?.total ?? 0} usuarios
-          </span>
-        </div>
-        <div className="overflow-x-auto">
+      <div className="min-w-0 overflow-hidden rounded-2xl border bg-white shadow-sm sm:rounded-3xl">
+        <TableFilters
+          search={search}
+          onSearchChange={setSearch}
+          searchPlaceholder="Nombre, correo o código de empleado"
+          totalLabel={`${filteredUsers.length} usuarios`}
+          hasActiveFilters={Boolean(search || roleFilter || statusFilter)}
+          onClear={() => {
+            setSearch('');
+            setRoleFilter('');
+            setStatusFilter('');
+          }}
+        >
+          <FilterSelect
+            label="Rol"
+            value={roleFilter}
+            onChange={setRoleFilter}
+            options={[
+              { value: '', label: 'Todos los roles' },
+              ...activeRoles.map((role) => ({ value: role.id, label: role.name })),
+            ]}
+          />
+          <FilterSelect
+            label="Estado"
+            value={statusFilter}
+            onChange={setStatusFilter}
+            options={[
+              { value: '', label: 'Todos los estados' },
+              { value: 'ACTIVO', label: 'Activo' },
+              { value: 'INACTIVO', label: 'Inactivo' },
+              { value: 'BLOQUEADO', label: 'Bloqueado' },
+              { value: 'PENDIENTE', label: 'Pendiente' },
+            ]}
+          />
+        </TableFilters>
+        <div className="responsive-table max-w-full overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
               <tr>
@@ -323,7 +346,7 @@ export function UsersPanel() {
               </tr>
             </thead>
             <tbody>
-              {users.data?.items.map((user) => (
+              {pagination.pageItems.map((user) => (
                 <tr key={user.id} className="border-t align-middle">
                   <td className="p-4">
                     <p className="font-bold text-slate-900">{user.name}</p>
@@ -331,26 +354,9 @@ export function UsersPanel() {
                   </td>
                   <td className="p-4 font-semibold">{user.employeeCode ?? 'Pendiente'}</td>
                   <td className="p-4">
-                    <select
-                      aria-label={`Rol de ${user.name}`}
-                      value={user.roles[0]?.id ?? ''}
-                      onChange={(event) =>
-                        updateUser.mutate({
-                          id: user.id,
-                          path: '/roles',
-                          method: 'PUT',
-                          body: { roleIds: [event.target.value] },
-                        })
-                      }
-                      className="h-10 min-w-48 rounded-lg border bg-white px-2"
-                    >
-                      <option value="">Sin rol</option>
-                      {activeRoles.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.name}
-                        </option>
-                      ))}
-                    </select>
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+                      {user.roles[0]?.name ?? 'Sin rol'}
+                    </span>
                   </td>
                   <td className="p-4">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">
@@ -424,6 +430,13 @@ export function UsersPanel() {
             <p className="p-8 text-center text-red-700">No fue posible cargar los usuarios.</p>
           )}
         </div>
+        <Pagination
+          page={pagination.page}
+          pageSize={pagination.pageSize}
+          total={filteredUsers.length}
+          onPageChange={pagination.setPage}
+          onPageSizeChange={pagination.setPageSize}
+        />
       </div>
     </section>
   );

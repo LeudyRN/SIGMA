@@ -308,6 +308,8 @@ CREATE TABLE historial_academico (
     id_asignatura BIGINT UNSIGNED NOT NULL,
     periodo_codigo VARCHAR(30) NOT NULL,
     calificacion DECIMAL(5,2) NULL,
+    calificacion_laboratorio DECIMAL(4,2) NULL,
+    calificacion_laboratorio_literal VARCHAR(20) NULL,
     estado_asignatura ENUM(
         'APROBADA','REPROBADA','RETIRADA','CURSANDO','PENDIENTE','CONVALIDADA'
     ) NOT NULL,
@@ -328,6 +330,9 @@ CREATE TABLE historial_academico (
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT chk_historial_calificacion CHECK (
         calificacion IS NULL OR calificacion BETWEEN 0 AND 100
+    ),
+    CONSTRAINT chk_historial_calificacion_laboratorio CHECK (
+        calificacion_laboratorio IS NULL OR calificacion_laboratorio BETWEEN 0 AND 30
     )
 ) ENGINE=InnoDB;
 
@@ -621,10 +626,32 @@ CREATE TABLE metodos_pago (
     CONSTRAINT uq_metodos_pago_nombre UNIQUE (nombre)
 ) ENGINE=InnoDB;
 
+CREATE TABLE cuentas_bancarias (
+    id_cuenta_bancaria BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    banco VARCHAR(120) NOT NULL,
+    numero_cuenta VARCHAR(80) NOT NULL,
+    tipo_cuenta ENUM('AHORRO','CORRIENTE') NOT NULL,
+    tipo_documento VARCHAR(30) NOT NULL,
+    documento_titular VARCHAR(30) NOT NULL,
+    nombre_titular VARCHAR(200) NOT NULL,
+    moneda CHAR(3) NOT NULL DEFAULT 'DOP',
+    instrucciones VARCHAR(1000) NULL,
+    estado ENUM('ACTIVO','INACTIVO') NOT NULL DEFAULT 'ACTIVO',
+    created_by BIGINT UNSIGNED NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_cuentas_bancarias_numero UNIQUE (numero_cuenta),
+    INDEX idx_cuentas_bancarias_estado (estado, banco),
+    CONSTRAINT fk_cuentas_bancarias_usuario
+        FOREIGN KEY (created_by) REFERENCES usuarios(id_usuario)
+        ON UPDATE CASCADE ON DELETE SET NULL
+) ENGINE=InnoDB;
+
 CREATE TABLE pagos (
     id_pago BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     id_inscripcion BIGINT UNSIGNED NOT NULL,
     id_metodo_pago BIGINT UNSIGNED NOT NULL,
+    id_cuenta_bancaria BIGINT UNSIGNED NULL,
     referencia VARCHAR(100) NOT NULL,
     idempotency_key VARCHAR(120) NOT NULL,
     monto DECIMAL(12,2) NOT NULL,
@@ -642,13 +669,41 @@ CREATE TABLE pagos (
     CONSTRAINT uq_pagos_idempotency UNIQUE (idempotency_key),
     INDEX idx_pagos_inscripcion_estado (id_inscripcion, estado),
     INDEX idx_pagos_fecha (fecha_pago),
+    INDEX idx_pagos_cuenta_bancaria (id_cuenta_bancaria),
     CONSTRAINT fk_pagos_inscripcion
         FOREIGN KEY (id_inscripcion) REFERENCES inscripciones(id_inscripcion)
         ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT fk_pagos_metodo
         FOREIGN KEY (id_metodo_pago) REFERENCES metodos_pago(id_metodo_pago)
         ON UPDATE CASCADE ON DELETE RESTRICT,
+    CONSTRAINT fk_pagos_cuenta_bancaria
+        FOREIGN KEY (id_cuenta_bancaria) REFERENCES cuentas_bancarias(id_cuenta_bancaria)
+        ON UPDATE CASCADE ON DELETE RESTRICT,
     CONSTRAINT chk_pagos_monto CHECK (monto >= 0)
+) ENGINE=InnoDB;
+
+CREATE TABLE comprobantes_transferencia (
+    id_comprobante BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    id_pago BIGINT UNSIGNED NOT NULL,
+    nombre_archivo VARCHAR(255) NOT NULL,
+    mime_type VARCHAR(120) NOT NULL,
+    tamano_bytes INT UNSIGNED NOT NULL,
+    hash_sha256 CHAR(64) NOT NULL,
+    contenido LONGBLOB NOT NULL,
+    estado ENUM('PENDIENTE','VALIDADO','RECHAZADO') NOT NULL DEFAULT 'PENDIENTE',
+    observacion VARCHAR(500) NULL,
+    revisado_por BIGINT UNSIGNED NULL,
+    revisado_at DATETIME NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT uq_comprobantes_transferencia_pago UNIQUE (id_pago),
+    INDEX idx_comprobantes_transferencia_estado (estado, created_at),
+    CONSTRAINT fk_comprobantes_transferencia_pago
+        FOREIGN KEY (id_pago) REFERENCES pagos(id_pago)
+        ON UPDATE CASCADE ON DELETE CASCADE,
+    CONSTRAINT fk_comprobantes_transferencia_revisor
+        FOREIGN KEY (revisado_por) REFERENCES usuarios(id_usuario)
+        ON UPDATE CASCADE ON DELETE SET NULL
 ) ENGINE=InnoDB;
 
 CREATE TABLE transacciones_pago (
@@ -962,7 +1017,8 @@ FROM roles r
 JOIN permisos p ON p.codigo IN (
     'GENERAL_RESUMEN_LEER', 'ESTUDIANTES_ELEGIBILIDAD_PROPIA',
     'UCOTESIS_OFERTAS_LEER', 'INSCRIPCIONES_PROPIAS_GESTIONAR',
-    'PAGOS_PROPIOS_GESTIONAR', 'NOTIFICACIONES_AUTOGESTIONAR'
+    'PAGOS_PROPIOS_GESTIONAR', 'PROYECTOS_PARTICIPAR',
+    'NOTIFICACIONES_AUTOGESTIONAR'
 )
 WHERE r.codigo = 'ESTUDIANTE';
 

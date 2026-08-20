@@ -8,6 +8,8 @@ import { randomUUID } from 'node:crypto';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AuthService } from '../auth/auth.service';
+import { evaluateAcademicRequirements } from './academic-eligibility';
+import { selectEffectiveAcademicAttempts } from './academic-history-results';
 import { CreateAcademicRecordDto } from './dto/create-academic-record.dto';
 import { CreateStudentCareerDto } from './dto/create-student-career.dto';
 import { CreateStudentDto } from './dto/create-student.dto';
@@ -366,7 +368,12 @@ export class StudentsService {
       include: { asignaturas: true },
       orderBy: [{ periodo_codigo: 'desc' }, { asignaturas: { codigo: 'asc' } }],
     });
-    return { items: records.map(mapHistory), total: records.length };
+    const effectiveRecords = selectEffectiveAcademicAttempts(records);
+    return {
+      items: effectiveRecords.map(mapHistory),
+      total: effectiveRecords.length,
+      totalAttempts: records.length,
+    };
   }
 
   async addHistory(careerId: string, dto: CreateAcademicRecordDto) {
@@ -381,6 +388,11 @@ export class StudentsService {
           id_asignatura: subjectId,
           periodo_codigo: dto.periodCode.trim().toUpperCase(),
           calificacion: dto.grade,
+          calificacion_laboratorio: dto.laboratoryGrade ?? null,
+          calificacion_laboratorio_literal:
+            dto.laboratoryGrade == null
+              ? null
+              : laboratoryLiteral(dto.laboratoryGrade),
           estado_asignatura: dto.status,
           fuente: dto.source?.trim() || 'REGISTRO_SIGMA',
         },
@@ -417,6 +429,15 @@ export class StudentsService {
           ? { periodo_codigo: dto.periodCode.trim().toUpperCase() }
           : {}),
         ...(dto.grade !== undefined ? { calificacion: dto.grade } : {}),
+        ...(dto.laboratoryGrade !== undefined
+          ? {
+              calificacion_laboratorio: dto.laboratoryGrade,
+              calificacion_laboratorio_literal:
+                dto.laboratoryGrade === null
+                  ? null
+                  : laboratoryLiteral(dto.laboratoryGrade),
+            }
+          : {}),
         ...(dto.status ? { estado_asignatura: dto.status } : {}),
         ...(dto.source !== undefined
           ? { fuente: dto.source.trim() || null }
@@ -461,7 +482,7 @@ export class StudentsService {
 
     const [requirements, history] = await Promise.all([
       this.prisma.plan_estudio_asignaturas.findMany({
-        where: { id_plan_estudio: selected.id_plan_estudio, obligatoria: true },
+        where: { id_plan_estudio: selected.id_plan_estudio },
         include: { asignaturas: true },
       }),
       this.prisma.historial_academico.findMany({
@@ -470,18 +491,57 @@ export class StudentsService {
         orderBy: { fecha_actualizacion: 'desc' },
       }),
     ]);
-    const passedIds = new Set(
-      history
-        .filter((record) => PASSING_STATUSES.has(record.estado_asignatura))
-        .map((record) => record.id_asignatura.toString()),
+    const passedHistory = history.filter((record) =>
+      PASSING_STATUSES.has(record.estado_asignatura),
     );
-    const pending = requirements.filter(
-      (requirement) => !passedIds.has(requirement.id_asignatura.toString()),
+    const evaluation = evaluateAcademicRequirements(
+      requirements.map((requirement) => ({
+        code: requirement.asignaturas.codigo,
+        credits:
+          requirement.creditos_plan?.toNumber() ??
+          requirement.asignaturas.creditos.toNumber(),
+        equivalences: requirement.equivalencias_texto,
+        id: requirement.id_asignatura.toString(),
+        mandatory: requirement.obligatoria,
+        name: requirement.asignaturas.nombre,
+        order: requirement.orden,
+        semester: requirement.semestre,
+        type: requirement.tipo,
+      })),
+      passedHistory.map((record) => ({
+        code: record.asignaturas.codigo,
+        name: record.asignaturas.nombre,
+      })),
     );
-    const completed = requirements.length - pending.length;
-    const percentage = requirements.length
-      ? Math.round((completed / requirements.length) * 10_000) / 100
-      : 0;
+    const pendingSubjects = evaluation.pendingBlockingRequirements.map(
+      (requirement) => ({
+        code: requirement.code,
+        credits: requirement.credits,
+        id: requirement.id,
+        name: requirement.name,
+      }),
+    );
+    if (evaluation.electiveCredits.pending > 0) {
+      pendingSubjects.push({
+        code: 'OPTATIVAS',
+        credits: evaluation.electiveCredits.pending,
+        id: `elective-credits-${selected.id_plan_estudio.toString()}`,
+        name: `Créditos optativos pendientes: ${evaluation.electiveCredits.pending} de ${evaluation.electiveCredits.required}`,
+      });
+    }
+    const hasRequirements = evaluation.requiredRequirements > 0;
+    const eligible =
+      hasRequirements &&
+      evaluation.pendingBlockingRequirements.length === 0 &&
+      evaluation.electiveCredits.pending === 0;
+    const graduationRequirements = evaluation.pendingGraduationRequirements.map(
+      (requirement) => ({
+        code: requirement.code,
+        credits: requirement.credits,
+        id: requirement.id,
+        name: requirement.name,
+      }),
+    );
 
     return {
       student: { id: studentId, matricula: student.matricula },
@@ -491,24 +551,27 @@ export class StudentsService {
         campus: selected.recinto_carreras.recintos.nombre,
         studyPlan: selected.planes_estudio.nombre,
       },
-      eligible: requirements.length > 0 && pending.length === 0,
-      completionPercentage: percentage,
-      requiredSubjects: requirements.length,
-      completedSubjects: completed,
-      pendingSubjects: pending.map((requirement) => ({
-        id: requirement.id_asignatura.toString(),
-        code: requirement.asignaturas.codigo,
-        name: requirement.asignaturas.nombre,
-        credits:
-          requirement.creditos_plan?.toNumber() ??
-          requirement.asignaturas.creditos.toNumber(),
-      })),
-      reason:
-        requirements.length === 0
-          ? 'El plan de estudio no tiene asignaturas obligatorias configuradas.'
-          : pending.length
+      eligible,
+      completionPercentage: evaluation.completionPercentage,
+      requiredSubjects: evaluation.requiredRequirements,
+      completedSubjects: evaluation.completedRequirements,
+      electiveCredits: evaluation.electiveCredits,
+      graduationRequirements,
+      pendingSubjects,
+      reason: !hasRequirements
+        ? 'El plan de estudio no tiene asignaturas obligatorias configuradas.'
+        : evaluation.pendingBlockingRequirements.length &&
+            evaluation.electiveCredits.pending
+          ? `Existen asignaturas obligatorias pendientes y faltan ${evaluation.electiveCredits.pending} créditos optativos.`
+          : evaluation.pendingBlockingRequirements.length
             ? 'Existen asignaturas obligatorias pendientes o no aprobadas.'
-            : 'Cumple el 100% de las asignaturas obligatorias del plan.',
+            : evaluation.electiveCredits.pending
+              ? `Faltan ${evaluation.electiveCredits.pending} créditos optativos válidos del plan.`
+              : graduationRequirements.length
+                ? `Cumple los requisitos previos. Puede inscribir ${graduationRequirements.map((requirement) => requirement.name).join(', ')}.`
+                : evaluation.electiveCredits.required
+                  ? `Cumple las asignaturas obligatorias y los ${evaluation.electiveCredits.required} créditos optativos del plan.`
+                  : 'Cumple el 100% de las asignaturas obligatorias del plan.',
       evaluatedAt: new Date().toISOString(),
     };
   }
@@ -631,6 +694,8 @@ function mapHistory(record: {
   id_asignatura: bigint;
   periodo_codigo: string;
   calificacion: Prisma.Decimal | null;
+  calificacion_laboratorio: Prisma.Decimal | null;
+  calificacion_laboratorio_literal: string | null;
   estado_asignatura: string;
   fuente: string | null;
   fecha_actualizacion: Date;
@@ -648,10 +713,16 @@ function mapHistory(record: {
     credits: record.asignaturas.creditos.toNumber(),
     periodCode: record.periodo_codigo,
     grade: record.calificacion?.toNumber() ?? null,
+    laboratoryGrade: record.calificacion_laboratorio?.toNumber() ?? null,
+    laboratoryGradeText: record.calificacion_laboratorio_literal,
     status: record.estado_asignatura,
     source: record.fuente,
     updatedAt: record.fecha_actualizacion,
   };
+}
+
+function laboratoryLiteral(value: number): string {
+  return `L${Number.isInteger(value) ? value : String(value).replace('.', ',')}`;
 }
 
 function parseId(value: string): bigint {

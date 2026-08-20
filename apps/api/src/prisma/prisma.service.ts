@@ -9,9 +9,9 @@ export class PrismaService extends PrismaClient implements OnModuleDestroy {
     const adapter = new PrismaMariaDb({
       host: config.get<string>('DATABASE_HOST', 'localhost'),
       port: config.get<number>('DATABASE_PORT', 3306),
-      user: config.get<string>('DATABASE_USER', 'sigma_user'),
-      password: config.get<string>('DATABASE_PASSWORD', 'sigma_password'),
-      database: config.get<string>('DATABASE_NAME', 'sigma_ucotesis'),
+      user: config.getOrThrow<string>('DATABASE_USER'),
+      password: config.getOrThrow<string>('DATABASE_PASSWORD'),
+      database: config.getOrThrow<string>('DATABASE_NAME'),
       connectionLimit: 10,
     });
 

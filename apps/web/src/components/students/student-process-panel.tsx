@@ -3,6 +3,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { BadgeDollarSign, BookOpenCheck, FileText, LoaderCircle, MapPin } from 'lucide-react';
 import { toast } from 'sonner';
+import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { apiFetch, readApiError } from '@/lib/api';
 
@@ -39,12 +40,21 @@ interface Enrollment {
     amount: number;
     createdAt: string;
     invoice: { number: string; receipt: string; pdfUrl: string | null } | null;
+    proofStatus: string | null;
+    proofObservation: string | null;
+    bankAccount: string | null;
   }>;
 }
-interface PaymentMethod {
+interface BankAccount {
   id: string;
-  code: string;
-  name: string;
+  bank: string;
+  accountNumber: string;
+  accountType: string;
+  documentType: string;
+  holderDocument: string;
+  holderName: string;
+  currency: string;
+  instructions: string | null;
 }
 
 async function read<T>(path: string): Promise<T> {
@@ -70,9 +80,9 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
     queryFn: () => read<{ items: Enrollment[] }>('/student-portal/enrollments'),
     enabled: mode !== 'offers',
   });
-  const methods = useQuery({
-    queryKey: ['student-portal', 'payment-methods'],
-    queryFn: () => read<{ items: PaymentMethod[] }>('/student-portal/payment-methods'),
+  const accounts = useQuery({
+    queryKey: ['student-portal', 'bank-accounts'],
+    queryFn: () => read<{ items: BankAccount[] }>('/payments/bank-accounts/public'),
     enabled: mode === 'payments',
   });
   const request = useMutation({
@@ -84,20 +94,16 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
     onError: (error: Error) => toast.error(error.message),
   });
   const payment = useMutation({
-    mutationFn: ({
-      enrollmentId,
-      paymentMethodId,
-    }: {
-      enrollmentId: string;
-      paymentMethodId: string;
-    }) =>
-      write('/student-portal/payment-intents', {
-        enrollmentId,
-        paymentMethodId,
-        idempotencyKey: crypto.randomUUID(),
-      }),
+    mutationFn: async (formData: FormData) => {
+      const response = await apiFetch('/payments/transfers', {
+        method: 'POST',
+        body: formData,
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      return response.json();
+    },
     onSuccess: (result: { message?: string }) => {
-      toast.success('Intención de pago registrada.', { description: result.message });
+      toast.success('Transferencia enviada para validación.', { description: result.message });
       void client.invalidateQueries({ queryKey: ['student-portal', 'enrollments'] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -114,7 +120,7 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
   const loading =
     (offers.isPending && mode === 'offers') || (enrollments.isPending && mode !== 'offers');
   return (
-    <section className="mx-auto max-w-6xl space-y-6">
+    <section className="w-full space-y-6">
       <header className="rounded-3xl border bg-white p-6 shadow-sm">
         <p className="text-sm font-bold tracking-widest text-blue-700 uppercase">
           Portal estudiantil
@@ -184,11 +190,9 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
             <PaymentCard
               key={item.id}
               enrollment={item}
-              methods={methods.data?.items ?? []}
+              accounts={accounts.data?.items ?? []}
               pending={payment.isPending}
-              onPay={(paymentMethodId) =>
-                payment.mutate({ enrollmentId: item.id, paymentMethodId })
-              }
+              onPay={(formData) => payment.mutate(formData)}
             />
           ))}
           {enrollments.data?.items.length === 0 && (
@@ -235,16 +239,20 @@ function EnrollmentList({ items }: { items: Enrollment[] }) {
 }
 function PaymentCard({
   enrollment,
-  methods,
+  accounts,
   pending,
   onPay,
 }: {
   enrollment: Enrollment;
-  methods: PaymentMethod[];
+  accounts: BankAccount[];
   pending: boolean;
-  onPay: (methodId: string) => void;
+  onPay: (formData: FormData) => void;
 }) {
   const latest = enrollment.payments[0];
+  const [accountId, setAccountId] = useState('');
+  const [reference, setReference] = useState('');
+  const [paidAt, setPaidAt] = useState('');
+  const [file, setFile] = useState<File | null>(null);
   return (
     <article className="rounded-3xl border bg-white p-6 shadow-sm">
       <div className="flex items-start justify-between gap-3">
@@ -254,12 +262,20 @@ function PaymentCard({
         </div>
         <BadgeDollarSign className="size-6 text-blue-700" />
       </div>
-      {latest ? (
+      {latest && latest.status !== 'RECHAZADO' ? (
         <div className="mt-4 rounded-xl bg-slate-50 p-4">
           <p className="text-sm font-semibold">{latest.reference}</p>
           <p className="mt-1 text-xs text-slate-500">
             {latest.method} · {latest.status}
           </p>
+          {latest.proofStatus && (
+            <p className="mt-2 text-xs font-bold text-blue-700">
+              Comprobante: {latest.proofStatus}
+            </p>
+          )}
+          {latest.proofObservation && (
+            <p className="mt-1 text-xs text-red-700">{latest.proofObservation}</p>
+          )}
         </div>
       ) : (
         <div className="mt-4">
@@ -267,22 +283,90 @@ function PaymentCard({
             Selecciona un método para registrar la intención. SIGMA no simula aprobaciones: el
             estado final debe llegar del proveedor.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {methods.map((method) => (
-              <Button
-                key={method.id}
-                type="button"
-                variant="outline"
-                onClick={() => onPay(method.id)}
-                disabled={pending}
+          <form
+            className="grid gap-3 sm:grid-cols-2"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (!file) return toast.error('Adjunta el comprobante.');
+              const data = new FormData();
+              data.set('enrollmentId', enrollment.id);
+              data.set('bankAccountId', accountId);
+              data.set('reference', reference);
+              data.set('paidAt', new Date(paidAt).toISOString());
+              data.set('proof', file);
+              onPay(data);
+            }}
+          >
+            <label className="sm:col-span-2">
+              <span className="mb-1 block text-xs font-bold">Cuenta bancaria</span>
+              <select
+                required
+                value={accountId}
+                onChange={(event) => setAccountId(event.target.value)}
+                className="h-11 w-full rounded-xl border px-3"
               >
-                {method.name}
-              </Button>
-            ))}
-          </div>
+                <option value="">Seleccionar</option>
+                {accounts.map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.bank} · {account.accountType} · {account.accountNumber} ·{' '}
+                    {account.holderName}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {accountId && (
+              <BankAccountDetail account={accounts.find((item) => item.id === accountId)} />
+            )}
+            <label>
+              <span className="mb-1 block text-xs font-bold">Referencia bancaria</span>
+              <input
+                required
+                value={reference}
+                onChange={(event) => setReference(event.target.value)}
+                className="h-11 w-full rounded-xl border px-3"
+              />
+            </label>
+            <label>
+              <span className="mb-1 block text-xs font-bold">Fecha y hora</span>
+              <input
+                required
+                type="datetime-local"
+                value={paidAt}
+                onChange={(event) => setPaidAt(event.target.value)}
+                className="h-11 w-full rounded-xl border px-3"
+              />
+            </label>
+            <label className="sm:col-span-2">
+              <span className="mb-1 block text-xs font-bold">
+                Captura o comprobante (PNG, JPG o PDF)
+              </span>
+              <input
+                required
+                type="file"
+                accept="image/png,image/jpeg,application/pdf"
+                onChange={(event) => setFile(event.target.files?.[0] ?? null)}
+                className="block w-full rounded-xl border p-2 text-sm"
+              />
+            </label>
+            <Button className="sm:col-span-2" type="submit" disabled={pending || !accounts.length}>
+              Enviar transferencia
+            </Button>
+          </form>
         </div>
       )}
     </article>
+  );
+}
+function BankAccountDetail({ account }: { account?: BankAccount }) {
+  if (!account) return null;
+  return (
+    <div className="rounded-xl bg-blue-50 p-3 text-xs text-blue-950 sm:col-span-2">
+      <strong>{account.holderName}</strong>
+      <br />
+      {account.documentType}: {account.holderDocument}
+      <br />
+      {account.instructions}
+    </div>
   );
 }
 function InvoiceList({ enrollments }: { enrollments: Enrollment[] }) {
