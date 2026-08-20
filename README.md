@@ -85,15 +85,10 @@ En Bash, Git Bash, macOS o Linux:
 cp .env.example apps/api/.env
 ```
 
-Abra `apps/api/.env` y complete, como mínimo, `DATABASE_URL`, `DATABASE_PASSWORD`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`. Ejemplo de formato para la conexión, sin usar esta contraseña literalmente:
+Abra `apps/api/.env` y complete, como mínimo, `DATABASE_URL`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET`. Ejemplo sin credenciales reales:
 
 ```dotenv
 DATABASE_URL="COMPLETE_AQUI_LA_URL_MYSQL_LOCAL"
-DATABASE_HOST="localhost"
-DATABASE_PORT="3306"
-DATABASE_USER="sigma_user"
-DATABASE_PASSWORD="CONTRASENA_LOCAL"
-DATABASE_NAME="sigma_ucotesis"
 JWT_ACCESS_SECRET="SECRETO_ALEATORIO_LARGO_Y_UNICO"
 JWT_REFRESH_SECRET="OTRO_SECRETO_ALEATORIO_LARGO_Y_DIFERENTE"
 ```
@@ -127,11 +122,6 @@ Resumen del lugar desde donde se ejecuta cada acción:
 | Variable                 | Propósito                                              |
 | ------------------------ | ------------------------------------------------------ |
 | `DATABASE_URL`           | URL MySQL usada por Prisma CLI                         |
-| `DATABASE_HOST`          | Host usado por el driver del API                       |
-| `DATABASE_PORT`          | Puerto MySQL, normalmente `3306`                       |
-| `DATABASE_USER`          | Usuario de aplicación MySQL                            |
-| `DATABASE_PASSWORD`      | Contraseña del usuario MySQL                           |
-| `DATABASE_NAME`          | Base de datos, normalmente `sigma_ucotesis`            |
 | `JWT_ACCESS_SECRET`      | Firma de tokens de acceso                              |
 | `JWT_REFRESH_SECRET`     | Firma independiente de refresh tokens                  |
 | `JWT_ACCESS_EXPIRES_IN`  | Vigencia del access token, por ejemplo `15m`           |
@@ -144,8 +134,8 @@ Resumen del lugar desde donde se ejecuta cada acción:
 | `WEB_PORT`               | Puerto documentado del frontend; predeterminado `3000` |
 | `NODE_ENV`               | `development`, `test` o `production`                   |
 
-Las variables `DATABASE_URL`, `DATABASE_PASSWORD`, `JWT_ACCESS_SECRET` y
-`JWT_REFRESH_SECRET` se dejan vacías intencionalmente en `.env.example`: el API y Prisma
+Las variables `DATABASE_URL`, `JWT_ACCESS_SECRET` y `JWT_REFRESH_SECRET` se dejan vacías
+intencionalmente en `.env.example`: el API y Prisma
 rechazan el arranque si no se configuran en el `.env` local. Nunca versione ese archivo ni
 reutilice secretos entre ambientes. Puede generar cada secreto JWT con
 `openssl rand -base64 48` o con el gestor de secretos de su plataforma.
