@@ -33,6 +33,11 @@ export function EntityDialog({
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLElement>(null);
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     if (!open) return;
@@ -41,7 +46,7 @@ export function EntityDialog({
       document.activeElement instanceof HTMLElement ? document.activeElement : null;
     document.body.style.overflow = 'hidden';
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+      if (event.key === 'Escape') onCloseRef.current();
       if (event.key !== 'Tab') return;
       const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
@@ -59,9 +64,13 @@ export function EntityDialog({
     };
     document.addEventListener('keydown', closeOnEscape);
     const focusFrame = requestAnimationFrame(() => {
-      dialogRef.current
-        ?.querySelector<HTMLElement>('input, select, textarea, button:not([disabled])')
-        ?.focus();
+      const firstFormControl = dialogRef.current?.querySelector<HTMLElement>(
+        '[data-dialog-initial-focus]:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
+      );
+      const fallbackControl = dialogRef.current?.querySelector<HTMLElement>(
+        'button:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      );
+      (firstFormControl ?? fallbackControl)?.focus();
     });
     return () => {
       cancelAnimationFrame(focusFrame);
@@ -69,7 +78,7 @@ export function EntityDialog({
       document.removeEventListener('keydown', closeOnEscape);
       previouslyFocused?.focus();
     };
-  }, [onClose, open]);
+  }, [open]);
 
   if (!open || typeof document === 'undefined') return null;
 

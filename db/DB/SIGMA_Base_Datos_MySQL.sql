@@ -822,6 +822,8 @@ CREATE TABLE proyectos_grado (
     id_proyecto BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     id_inscripcion BIGINT UNSIGNED NOT NULL,
     id_area BIGINT UNSIGNED NULL,
+    area_personalizada VARCHAR(150) NULL,
+    observacion_revision VARCHAR(1000) NULL,
     titulo VARCHAR(300) NULL,
     descripcion TEXT NULL,
     estado ENUM(

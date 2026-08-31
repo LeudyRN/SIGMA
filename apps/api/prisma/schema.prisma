@@ -634,19 +634,21 @@ model proyecto_docentes {
 }
 
 model proyectos_grado {
-  id_proyecto         BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
-  id_inscripcion      BigInt                 @unique(map: "uq_proyectos_inscripcion") @db.UnsignedBigInt
-  id_area             BigInt?                @db.UnsignedBigInt
-  titulo              String?                @db.VarChar(300)
-  descripcion         String?                @db.Text
-  estado              proyectos_grado_estado @default(PENDIENTE)
-  fecha_inicio        DateTime?              @db.Date
-  fecha_finalizacion  DateTime?              @db.Date
-  created_at          DateTime               @default(now()) @db.Timestamp(0)
-  updated_at          DateTime               @default(now()) @db.Timestamp(0)
-  proyecto_docentes   proyecto_docentes[]
-  areas_investigacion areas_investigacion?   @relation(fields: [id_area], references: [id_area], map: "fk_proyectos_area")
-  inscripciones       inscripciones          @relation(fields: [id_inscripcion], references: [id_inscripcion], map: "fk_proyectos_inscripcion")
+  id_proyecto          BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion       BigInt                 @unique(map: "uq_proyectos_inscripcion") @db.UnsignedBigInt
+  id_area              BigInt?                @db.UnsignedBigInt
+  area_personalizada   String?                @db.VarChar(150)
+  observacion_revision String?                @db.VarChar(1000)
+  titulo               String?                @db.VarChar(300)
+  descripcion          String?                @db.Text
+  estado               proyectos_grado_estado @default(PENDIENTE)
+  fecha_inicio         DateTime?              @db.Date
+  fecha_finalizacion   DateTime?              @db.Date
+  created_at           DateTime               @default(now()) @db.Timestamp(0)
+  updated_at           DateTime               @default(now()) @db.Timestamp(0)
+  proyecto_docentes    proyecto_docentes[]
+  areas_investigacion  areas_investigacion?   @relation(fields: [id_area], references: [id_area], map: "fk_proyectos_area")
+  inscripciones        inscripciones          @relation(fields: [id_inscripcion], references: [id_inscripcion], map: "fk_proyectos_inscripcion")
 
   @@index([id_area], map: "idx_proyectos_area")
   @@index([estado], map: "idx_proyectos_estado")

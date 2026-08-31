@@ -47,6 +47,7 @@ export type OperationsMode =
 
 type Item = Record<string, unknown> & { id?: string };
 interface DataSet {
+  nextCode?: string;
   items?: Item[];
   states?: Item[];
   methods?: Item[];
@@ -78,6 +79,8 @@ interface Field {
   required?: boolean;
   options?: Option[];
   multiple?: boolean;
+  readOnly?: boolean;
+  visibleWhen?: { field: string; value: string };
 }
 interface Editor {
   title: string;
@@ -154,6 +157,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
   const pagination = usePagination(filtered, 10);
   const editor = buildEditor(mode, editorItem ?? null, {
     canManage,
+    isStudent,
     ucotesis: ucotesisCatalogs.data,
     enrollments: enrollmentCatalogs.data,
     projects: projectCatalogs.data,
@@ -198,7 +202,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
   });
 
   const openCreate = () => {
-    setForm(defaultForm(mode));
+    setForm(defaultForm(mode, source.data?.nextCode));
     setEditorItem(null);
   };
   const openStatus = (item: Item) => {
@@ -218,6 +222,24 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
     action.mutate(operation);
   };
   const statusOptions = [...new Set(items.map((x) => String(x.status ?? '')).filter(Boolean))];
+  const downloadFile = async (path: string, fallbackName: string) => {
+    try {
+      const response = await apiFetch(path);
+      if (!response.ok) throw new Error(await readApiError(response));
+      const disposition = response.headers.get('content-disposition');
+      const name = disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? fallbackName;
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No fue posible descargar el archivo.');
+    }
+  };
   return (
     <section className="w-full space-y-5">
       <header className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7">
@@ -234,6 +256,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
           {canCreateMode(mode, canManage, isStudent) &&
             buildEditor(mode, null, {
               canManage,
+              isStudent,
               ucotesis: ucotesisCatalogs.data,
               enrollments: enrollmentCatalogs.data,
               projects: projectCatalogs.data,
@@ -294,7 +317,9 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
             mode={mode}
             items={pagination.pageItems}
             canManage={canManage}
+            isStudent={isStudent}
             onAction={handleRowAction}
+            onDownload={(path, name) => void downloadFile(path, name)}
             onReview={(item, decision) =>
               action.mutate({
                 path: `/payments/${item.id}/review`,
@@ -346,14 +371,19 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
               save.mutate();
             }}
           >
-            {editor.fields.map((field) => (
-              <EditorField
-                key={field.key}
-                field={field}
-                value={form[field.key] ?? ''}
-                onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))}
-              />
-            ))}
+            {editor.fields
+              .filter(
+                (field) =>
+                  !field.visibleWhen || form[field.visibleWhen.field] === field.visibleWhen.value,
+              )
+              .map((field) => (
+                <EditorField
+                  key={field.key}
+                  field={field}
+                  value={form[field.key] ?? ''}
+                  onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))}
+                />
+              ))}
           </form>
         )}
       </EntityDialog>
@@ -467,13 +497,17 @@ function DataTable({
   mode,
   items,
   canManage,
+  isStudent,
   onAction,
+  onDownload,
   onReview,
 }: {
   mode: OperationsMode;
   items: Item[];
   canManage: boolean;
+  isStudent: boolean;
   onAction: (kind: RowAction, item: Item) => void;
+  onDownload: (path: string, name: string) => void;
   onReview: (item: Item, decision: 'VALIDADO' | 'RECHAZADO') => void;
 }) {
   const columns = columnsFor(mode);
@@ -500,7 +534,7 @@ function DataTable({
               ))}
               <td className="px-5 py-3">
                 <div className="flex justify-end gap-2">
-                  {rowActions(mode, item, canManage).map((rowAction) => (
+                  {rowActions(mode, item, canManage, isStudent).map((rowAction) => (
                     <Button
                       key={rowAction.kind}
                       size="sm"
@@ -533,22 +567,27 @@ function DataTable({
                     </>
                   )}
                   {mode === 'pagos' && Boolean(item.proof) && (
-                    <a
-                      className="inline-flex h-9 items-center gap-2 rounded-md border px-3 font-semibold"
-                      href={`/api/payments/${item.id}/proof`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        onDownload(`/payments/${item.id}/proof`, `comprobante-${item.id}`)
+                      }
                     >
                       <Download className="size-4" /> Comprobante
-                    </a>
+                    </Button>
                   )}
                   {mode === 'facturas' && (
-                    <a
-                      className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-700 px-3 font-semibold text-white"
-                      href={`/api/payments/invoices/${item.id}/pdf`}
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        onDownload(`/payments/invoices/${item.id}/pdf`, `factura-${item.id}.pdf`)
+                      }
                     >
                       <Download className="size-4" /> PDF
-                    </a>
+                    </Button>
                   )}
                 </div>
               </td>
@@ -565,6 +604,7 @@ function buildEditor(
   item: Item | null,
   catalogs: {
     canManage?: boolean;
+    isStudent?: boolean;
     ucotesis?: DataSet;
     enrollments?: DataSet;
     projects?: DataSet;
@@ -583,7 +623,12 @@ function buildEditor(
         `/ucotesis/catalogs/${CATALOG_KIND[mode as keyof typeof CATALOG_KIND]}${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
-        { key: 'codigo', label: 'Código', required: true },
+        {
+          key: 'codigo',
+          label: mode === 'areas-investigacion' ? 'Código automático' : 'Código',
+          required: true,
+          readOnly: mode === 'areas-investigacion',
+        },
         { key: 'nombre', label: 'Nombre', required: true },
         { key: 'descripcion', label: 'Descripción', type: 'textarea' },
         ...(item
@@ -617,7 +662,7 @@ function buildEditor(
       endpoint: (value) => `/ucotesis/periods${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
-        { key: 'codigo', label: 'Código', required: true },
+        { key: 'codigo', label: 'Código automático', required: true, readOnly: true },
         { key: 'nombre', label: 'Nombre', required: true },
         { key: 'fechaInicio', label: 'Fecha inicial', type: 'date', required: true },
         { key: 'fechaFin', label: 'Fecha final', type: 'date', required: true },
@@ -637,7 +682,7 @@ function buildEditor(
       endpoint: (value) => `/ucotesis/offers${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
-        { key: 'codigo', label: 'Código', required: true },
+        { key: 'codigo', label: 'Código automático', required: true, readOnly: true },
         { key: 'titulo', label: 'Título', required: true },
         {
           key: 'recintoCarreraId',
@@ -871,11 +916,49 @@ function buildEditor(
         { key: 'to', label: 'Hasta', type: 'datetime-local', required: true },
       ],
     };
-  if (mode === 'proyectos-grado')
+  if (mode === 'proyectos-grado') {
+    if (!item && !catalogs.isStudent) return null;
+    if (item && catalogs.canManage)
+      return {
+        title: 'Revisar proyecto de grado',
+        description:
+          'El contenido enviado por el estudiante es de solo lectura. Aprueba, rechaza o actualiza el estado del proceso.',
+        submitLabel: 'Guardar revisión',
+        endpoint: (value) => `/projects/${value?.id}`,
+        method: 'PATCH',
+        fields: [
+          {
+            key: 'status',
+            label: 'Decisión o estado',
+            type: 'select',
+            required: true,
+            options: enumOptions([
+              'EN_REVISION',
+              'APROBADO',
+              'RECHAZADO',
+              'EN_DESARROLLO',
+              'FINALIZADO',
+              'CANCELADO',
+            ]),
+          },
+          {
+            key: 'reviewObservation',
+            label: 'Ajustes solicitados al estudiante',
+            type: 'textarea',
+            required: true,
+            visibleWhen: { field: 'status', value: 'RECHAZADO' },
+          },
+          { key: 'startDate', label: 'Fecha de inicio', type: 'date' },
+          { key: 'endDate', label: 'Fecha de finalización', type: 'date' },
+        ],
+      };
+    if (item && !catalogs.isStudent) return null;
     return {
-      title: item ? 'Editar proyecto de grado' : 'Registrar proyecto de grado',
-      description: 'Solo se muestran inscripciones confirmadas que todavía no tienen proyecto.',
-      submitLabel: item ? 'Guardar cambios' : 'Crear proyecto',
+      title: item ? 'Ajustar proyecto de grado' : 'Registrar proyecto de grado',
+      description: item
+        ? 'Corrige la propuesta rechazada y vuelve a enviarla a revisión.'
+        : 'Registra tu propuesta; coordinación la revisará antes de aprobarla.',
+      submitLabel: item ? 'Enviar ajustes' : 'Enviar a revisión',
       endpoint: (value) => `/projects${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
@@ -894,36 +977,33 @@ function buildEditor(
           key: 'areaId',
           label: 'Área de investigación',
           type: 'select',
-          options: select(catalogs.projects?.areas, (x) => String(x.name)),
+          required: true,
+          options: [
+            ...select(catalogs.projects?.areas, (x) => String(x.name)),
+            { value: '__OTHER__', label: 'Otro: proponer un tema o área propia' },
+          ],
+        },
+        {
+          key: 'customArea',
+          label: 'Tema o área propuesta',
+          required: true,
+          visibleWhen: { field: 'areaId', value: '__OTHER__' },
         },
         { key: 'title', label: 'Título', required: true },
-        { key: 'description', label: 'Descripción', type: 'textarea' },
+        { key: 'description', label: 'Descripción', type: 'textarea', required: true },
         ...(item
           ? [
               {
-                key: 'status',
-                label: 'Estado',
-                type: 'select' as const,
-                options: enumOptions(
-                  catalogs.canManage
-                    ? [
-                        'PENDIENTE',
-                        'EN_DESARROLLO',
-                        'EN_REVISION',
-                        'APROBADO',
-                        'RECHAZADO',
-                        'FINALIZADO',
-                        'CANCELADO',
-                      ]
-                    : ['EN_DESARROLLO', 'EN_REVISION'],
-                ),
+                key: 'reviewObservation',
+                label: 'Ajustes indicados por coordinación',
+                type: 'textarea' as const,
+                readOnly: true,
               },
-              { key: 'startDate', label: 'Fecha de inicio', type: 'date' as const },
-              { key: 'endDate', label: 'Fecha de finalización', type: 'date' as const },
             ]
           : []),
       ],
     };
+  }
   if (mode === 'asesores-jurados')
     return {
       title: 'Asignar asesor o jurado',
@@ -1036,20 +1116,27 @@ function EditorField({
       ) : field.type === 'textarea' ? (
         <textarea
           required={field.required}
+          readOnly={field.readOnly}
           value={String(value)}
           onChange={(event) => onChange(event.target.value)}
           rows={4}
-          className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          className={`w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${field.readOnly ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`}
         />
       ) : (
         <input
           required={field.required}
+          readOnly={field.readOnly}
           type={field.type ?? 'text'}
           step={field.type === 'number' ? '0.01' : undefined}
           value={String(value)}
           onChange={(event) => onChange(event.target.value)}
-          className={common}
+          className={`${common} ${field.readOnly ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`}
         />
+      )}
+      {field.readOnly && (
+        <span className="mt-1 block text-xs text-slate-500">
+          SIGMA reserva este código automáticamente al guardar.
+        </span>
       )}
     </label>
   );
@@ -1278,19 +1365,24 @@ function canManageMode(mode: OperationsMode, roles: string[], permissions: strin
 }
 
 function canCreateMode(mode: OperationsMode, canManage: boolean, isStudent: boolean) {
-  return canManage || (mode === 'proyectos-grado' && isStudent);
+  if (mode === 'proyectos-grado') return isStudent;
+  return canManage;
 }
 
 function rowActions(
   mode: OperationsMode,
   item: Item,
   canManage: boolean,
+  isStudent: boolean,
 ): Array<{ kind: RowAction; label: string }> {
   const actions: Array<{ kind: RowAction; label: string }> = [{ kind: 'view', label: 'Ver' }];
   if (canManage && mode === 'inscripciones')
     actions.push({ kind: 'status', label: 'Cambiar estado' });
   if (
-    (canManage || mode === 'proyectos-grado') &&
+    (canManage ||
+      (mode === 'proyectos-grado' &&
+        isStudent &&
+        ['PENDIENTE', 'RECHAZADO'].includes(String(item.status)))) &&
     [
       'modalidades',
       'periodos',
@@ -1452,7 +1544,9 @@ function formFromItem(mode: OperationsMode, item: Item): Record<string, string |
     return {
       title: text(item.title),
       description: text(item.description),
-      areaId: text((item.area as Item | undefined)?.id),
+      areaId: item.customArea ? '__OTHER__' : text((item.area as Item | undefined)?.id),
+      customArea: text(item.customArea),
+      reviewObservation: text(item.reviewObservation),
       status: text(item.status),
       startDate: dateInput(item.startDate),
       endDate: dateInput(item.endDate),
@@ -1482,16 +1576,10 @@ function DetailView({ item }: { item: Item }) {
       {Object.entries(item).map(([key, value]) => (
         <div key={key} className="rounded-xl border bg-slate-50 p-3">
           <dt className="text-xs font-bold tracking-wide text-slate-500 uppercase">
-            {key.replaceAll(/([A-Z])/g, ' $1').replaceAll('_', ' ')}
+            {detailLabel(key)}
           </dt>
           <dd className="mt-1 text-sm break-words text-slate-900">
-            {typeof value === 'object' && value !== null ? (
-              <pre className="overflow-auto whitespace-pre-wrap">
-                {JSON.stringify(value, null, 2)}
-              </pre>
-            ) : (
-              renderValue(value)
-            )}
+            <DetailValue value={value} fieldKey={key} currency={String(item.currency ?? 'DOP')} />
           </dd>
         </div>
       ))}
@@ -1499,14 +1587,130 @@ function DetailView({ item }: { item: Item }) {
   );
 }
 
+function DetailValue({
+  value,
+  fieldKey,
+  currency = 'DOP',
+}: {
+  value: unknown;
+  fieldKey?: string;
+  currency?: string;
+}) {
+  if (fieldKey === 'amount' && typeof value === 'number')
+    return new Intl.NumberFormat('es-DO', { style: 'currency', currency }).format(value);
+  if (fieldKey === 'pdfUrl')
+    return value ? (
+      <span className="font-semibold text-emerald-700">Disponible</span>
+    ) : (
+      renderValue(value)
+    );
+  if (fieldKey === 'mimeType' && typeof value === 'string')
+    return value === 'application/pdf'
+      ? 'Documento PDF'
+      : value.startsWith('image/')
+        ? 'Imagen'
+        : value;
+  if ((fieldKey === 'status' || fieldKey === 'accountType') && typeof value === 'string')
+    return value.replaceAll('_', ' ');
+  if (Array.isArray(value)) {
+    if (!value.length) return <span className="text-slate-400">Sin registros</span>;
+    return (
+      <div className="space-y-2">
+        {value.map((entry, index) => (
+          <div key={index} className="rounded-lg border bg-white p-2.5">
+            <DetailValue value={entry} currency={currency} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const nestedCurrency = String((value as Item).currency ?? currency);
+    return (
+      <dl className="space-y-2">
+        {Object.entries(value as Item).map(([key, nestedValue]) => (
+          <div key={key} className="grid gap-0.5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-2">
+            <dt className="font-semibold text-slate-500">{detailLabel(key)}</dt>
+            <dd className="min-w-0 break-words text-slate-900">
+              <DetailValue value={nestedValue} fieldKey={key} currency={nestedCurrency} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return renderValue(value);
+}
+
+const DETAIL_LABELS: Record<string, string> = {
+  id: 'Identificador',
+  code: 'Código',
+  reference: 'Referencia',
+  status: 'Estado',
+  statusName: 'Nombre del estado',
+  amount: 'Monto',
+  currency: 'Moneda',
+  paidAt: 'Fecha del pago',
+  createdAt: 'Fecha de registro',
+  updatedAt: 'Última actualización',
+  enrollment: 'Inscripción',
+  enrollmentId: 'Inscripción',
+  offer: 'Oferta',
+  student: 'Estudiante',
+  registration: 'Matrícula',
+  name: 'Nombre',
+  method: 'Método de pago',
+  account: 'Cuenta bancaria',
+  bank: 'Banco',
+  accountNumber: 'Número de cuenta',
+  accountType: 'Tipo de cuenta',
+  documentType: 'Tipo de documento',
+  holderDocument: 'Documento del titular',
+  holderName: 'Titular',
+  instructions: 'Instrucciones',
+  proof: 'Comprobante',
+  mimeType: 'Tipo de archivo',
+  observation: 'Observación',
+  uploadedAt: 'Fecha de carga',
+  invoice: 'Factura',
+  number: 'Número',
+  receipt: 'Recibo',
+  pdfUrl: 'Documento PDF',
+  title: 'Título',
+  description: 'Descripción',
+  customArea: 'Área propuesta',
+  reviewObservation: 'Ajustes solicitados',
+  campus: 'Recinto',
+  career: 'Carrera',
+  modality: 'Modalidad',
+  period: 'Período',
+};
+
+function detailLabel(key: string) {
+  return (
+    DETAIL_LABELS[key] ??
+    key
+      .replaceAll(/([A-Z])/g, ' $1')
+      .replaceAll('_', ' ')
+      .trim()
+      .replace(/^./, (character) => character.toUpperCase())
+  );
+}
+
 function dateInput(value: unknown) {
   return value ? new Date(String(value)).toISOString().slice(0, 10) : '';
 }
 function dateTimeInput(value: unknown) {
-  return value ? new Date(String(value)).toISOString().slice(0, 16) : '';
+  if (!value) return '';
+  const date = new Date(String(value));
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
 }
-function defaultForm(mode: OperationsMode): Record<string, string> {
+function defaultForm(mode: OperationsMode, nextCode?: string): Record<string, string> {
   return {
+    ...(['periodos', 'areas-investigacion', 'ofertas'].includes(mode) && {
+      codigo: nextCode ?? 'Se asignará al guardar',
+    }),
     ...(mode === 'cuentas-bancarias' && {
       currency: 'DOP',
       accountType: 'AHORRO',
@@ -1549,7 +1753,12 @@ function resolveEditorEndpoint(
 
 function editorPayload(mode: OperationsMode, payload: Record<string, unknown>) {
   const result = { ...payload };
+  if (['periodos', 'areas-investigacion', 'ofertas'].includes(mode)) delete result.codigo;
   if (mode === 'sustentantes' || mode === 'validaciones') delete result.enrollmentId;
   if (mode === 'asesores-jurados') delete result.projectId;
+  if (mode === 'proyectos-grado') {
+    if (result.areaId === '__OTHER__') delete result.areaId;
+    else delete result.customArea;
+  }
   return result;
 }

@@ -15,6 +15,11 @@ export class CreateProjectDto {
   @IsString()
   @Matches(/^\d+$/)
   areaId?: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(150)
+  customArea?: string;
   @ApiProperty() @IsString() @MaxLength(300) title!: string;
   @ApiPropertyOptional()
   @IsOptional()
@@ -23,6 +28,11 @@ export class CreateProjectDto {
   description?: string;
 }
 export class UpdateProjectDto extends PartialType(CreateProjectDto) {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  reviewObservation?: string;
   @ApiPropertyOptional({
     enum: [
       'PENDIENTE',

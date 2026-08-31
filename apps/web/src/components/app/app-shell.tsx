@@ -57,26 +57,6 @@ async function loadCurrentUser(): Promise<AuthUser> {
     throw new ApiError('No fue posible validar la sesión.', null, 'UNKNOWN');
   }
 
-  if (response.status === 401) {
-    let refresh: Response;
-
-    try {
-      refresh = await apiFetch('/auth/refresh', {
-        method: 'POST',
-      });
-    } catch (error) {
-      throw error;
-    }
-
-    if (refresh.ok) {
-      response = await apiFetch('/auth/me');
-    } else if (refresh.status === 401 || refresh.status === 403) {
-      throw new ApiError('Tu sesión expiró.', refresh.status, 'HTTP');
-    } else {
-      throw new ApiError(await readApiError(refresh), refresh.status, 'HTTP');
-    }
-  }
-
   if (!response.ok) {
     throw new ApiError(await readApiError(response), response.status, 'HTTP');
   }

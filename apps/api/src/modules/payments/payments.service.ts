@@ -198,6 +198,11 @@ export class PaymentsService {
     const user = parseId(userId);
     const enrollmentId = parseId(dto.enrollmentId);
     const accountId = parseId(dto.bankAccountId);
+    const paidAt = new Date(dto.paidAt);
+    if (paidAt.getTime() > Date.now() + 5 * 60 * 1000)
+      throw new BadRequestException(
+        'La fecha de la transferencia no puede estar en el futuro.',
+      );
     const [enrollment, account, method, processingState] = await Promise.all([
       this.prisma.inscripciones.findFirst({
         where: {
@@ -209,7 +214,16 @@ export class PaymentsService {
             codigo: { in: ['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGO_PROCESANDO'] },
           },
         },
-        include: { estados_inscripcion: true },
+        include: {
+          estados_inscripcion: true,
+          pagos: {
+            where: {
+              estado: { in: ['PENDIENTE', 'PROCESANDO', 'APROBADO'] },
+            },
+            select: { id_pago: true, estado: true },
+            take: 1,
+          },
+        },
       }),
       this.prisma.cuentas_bancarias.findFirst({
         where: { id_cuenta_bancaria: accountId, estado: 'ACTIVO' },
@@ -236,6 +250,10 @@ export class PaymentsService {
       throw new ConflictException(
         'El estado PAGO_PROCESANDO no está configurado.',
       );
+    if (enrollment.pagos.length)
+      throw new ConflictException(
+        'La inscripción ya tiene un pago pendiente o aprobado.',
+      );
     const digest = createHash('sha256').update(file.buffer).digest('hex');
     try {
       const payment = await this.prisma.$transaction(async (db) => {
@@ -249,7 +267,7 @@ export class PaymentsService {
             monto: enrollment.monto_aplicado,
             moneda: enrollment.moneda,
             estado: 'PENDIENTE',
-            fecha_pago: new Date(dto.paidAt),
+            fecha_pago: paidAt,
             comprobantes_transferencia: {
               create: {
                 nombre_archivo: file.originalname.slice(0, 255),
@@ -307,8 +325,12 @@ export class PaymentsService {
     );
     if (dto.decision === 'RECHAZADO') {
       const pendingState = await this.prisma.estados_inscripcion.findFirst({
-        where: { codigo: 'PENDIENTE_PAGO' },
+        where: { codigo: 'PENDIENTE_PAGO', estado: 'ACTIVO' },
       });
+      if (!pendingState)
+        throw new ConflictException(
+          'El estado PENDIENTE_PAGO no está configurado.',
+        );
       await this.prisma.$transaction(async (db) => {
         await db.pagos.update({
           where: { id_pago: paymentId },
@@ -323,24 +345,22 @@ export class PaymentsService {
             revisado_at: new Date(),
           },
         });
-        if (pendingState) {
-          await db.inscripciones.update({
-            where: { id_inscripcion: payment.id_inscripcion },
-            data: {
-              id_estado: pendingState.id_estado,
-              version_lock: { increment: 1 },
-            },
-          });
-          await db.historial_estados_inscripcion.create({
-            data: {
-              id_inscripcion: payment.id_inscripcion,
-              id_estado_anterior: payment.inscripciones.id_estado,
-              id_estado_nuevo: pendingState.id_estado,
-              cambiado_por: reviewer,
-              motivo: dto.observation?.trim() || 'Pago rechazado.',
-            },
-          });
-        }
+        await db.inscripciones.update({
+          where: { id_inscripcion: payment.id_inscripcion },
+          data: {
+            id_estado: pendingState.id_estado,
+            version_lock: { increment: 1 },
+          },
+        });
+        await db.historial_estados_inscripcion.create({
+          data: {
+            id_inscripcion: payment.id_inscripcion,
+            id_estado_anterior: payment.inscripciones.id_estado,
+            id_estado_nuevo: pendingState.id_estado,
+            cambiado_por: reviewer,
+            motivo: dto.observation?.trim() || 'Pago rechazado.',
+          },
+        });
       });
       await this.notifications.create({
         userIds,

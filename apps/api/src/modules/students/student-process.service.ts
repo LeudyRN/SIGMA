@@ -21,15 +21,14 @@ export class StudentProcessService {
 
   async offers(userId: string) {
     const student = await this.studentByUser(userId);
-    const campusCareerIds = student.estudiante_carreras.map(
-      (item) => item.id_recinto_carrera,
-    );
+    const campusCareerIds = student.estudiante_carreras
+      .filter((item) => item.estado === 'ACTIVA')
+      .map((item) => item.id_recinto_carrera);
     const now = new Date();
     const offers = await this.prisma.ofertas.findMany({
       where: {
         id_recinto_carrera: { in: campusCareerIds },
         estado: 'PUBLICADA',
-        fecha_inicio_inscripcion: { lte: now },
         fecha_fin_inscripcion: { gte: now },
       },
       include: {
@@ -38,34 +37,66 @@ export class StudentProcessService {
         recinto_carreras: { include: { carreras: true, recintos: true } },
         oferta_areas: { include: { areas_investigacion: true } },
         oferta_requisitos: { include: { requisitos: true } },
+        inscripciones: {
+          where: {
+            inscripcion_estudiantes: {
+              some: { id_estudiante: student.id_estudiante },
+            },
+          },
+          select: {
+            id_inscripcion: true,
+            estados_inscripcion: { select: { codigo: true, nombre: true } },
+          },
+          take: 1,
+        },
       },
       orderBy: { fecha_fin_inscripcion: 'asc' },
     });
     return {
-      items: offers.map((offer) => ({
-        id: offer.id_oferta.toString(),
-        code: offer.codigo,
-        title: offer.titulo,
-        description: offer.descripcion,
-        modality: offer.modalidades.nombre,
-        period: offer.periodos_academicos.nombre,
-        campus: offer.recinto_carreras.recintos.nombre,
-        career: offer.recinto_carreras.carreras.nombre,
-        registrationStart: offer.fecha_inicio_inscripcion,
-        registrationEnd: offer.fecha_fin_inscripcion,
-        capacity: offer.cupo_total,
-        reserved: offer.cupo_reservado,
-        available: Math.max(offer.cupo_total - offer.cupo_reservado, 0),
-        amount: offer.monto.toNumber(),
-        currency: offer.moneda,
-        areas: offer.oferta_areas.map(
-          (item) => item.areas_investigacion.nombre,
-        ),
-        requirements: offer.oferta_requisitos.map((item) => ({
-          name: item.requisitos.nombre,
-          required: item.obligatorio,
-        })),
-      })),
+      items: offers.map((offer) => {
+        const available = Math.max(offer.cupo_total - offer.cupo_reservado, 0);
+        const existing = offer.inscripciones[0];
+        const availability = existing
+          ? 'SOLICITADA'
+          : offer.fecha_inicio_inscripcion > now
+            ? 'PROXIMAMENTE'
+            : available === 0
+              ? 'AGOTADA'
+              : 'ABIERTA';
+        return {
+          id: offer.id_oferta.toString(),
+          code: offer.codigo,
+          title: offer.titulo,
+          description: offer.descripcion,
+          modality: offer.modalidades.nombre,
+          period: offer.periodos_academicos.nombre,
+          campus: offer.recinto_carreras.recintos.nombre,
+          career: offer.recinto_carreras.carreras.nombre,
+          registrationStart: offer.fecha_inicio_inscripcion,
+          registrationEnd: offer.fecha_fin_inscripcion,
+          capacity: offer.cupo_total,
+          reserved: offer.cupo_reservado,
+          available,
+          availability,
+          canEnroll: availability === 'ABIERTA',
+          existingEnrollment: existing
+            ? {
+                id: existing.id_inscripcion.toString(),
+                status: existing.estados_inscripcion.codigo,
+                statusName: existing.estados_inscripcion.nombre,
+              }
+            : null,
+          amount: offer.monto.toNumber(),
+          currency: offer.moneda,
+          areas: offer.oferta_areas.map(
+            (item) => item.areas_investigacion.nombre,
+          ),
+          requirements: offer.oferta_requisitos.map((item) => ({
+            name: item.requisitos.nombre,
+            required: item.obligatorio,
+          })),
+        };
+      }),
     };
   }
 
@@ -167,7 +198,10 @@ export class StudentProcessService {
         fecha_fin_inscripcion: { gte: new Date() },
         recinto_carreras: {
           estudiante_carreras: {
-            some: { id_estudiante: student.id_estudiante },
+            some: {
+              id_estudiante: student.id_estudiante,
+              estado: 'ACTIVA',
+            },
           },
         },
       },
@@ -177,11 +211,25 @@ export class StudentProcessService {
         'La oferta no está disponible para tu carrera.',
       );
     const career = student.estudiante_carreras.find(
-      (item) => item.id_recinto_carrera === offer.id_recinto_carrera,
+      (item) =>
+        item.id_recinto_carrera === offer.id_recinto_carrera &&
+        item.estado === 'ACTIVA',
     );
     if (!career)
       throw new BadRequestException(
         'La oferta no corresponde a tu expediente.',
+      );
+    const existingEnrollment =
+      await this.prisma.inscripcion_estudiantes.findFirst({
+        where: {
+          id_oferta: offerId,
+          id_estudiante: student.id_estudiante,
+        },
+        select: { id_inscripcion: true },
+      });
+    if (existingEnrollment)
+      throw new ConflictException(
+        'Ya registraste una solicitud para esta oferta.',
       );
     const eligibility = await this.students.eligibility(
       student.id_estudiante.toString(),
@@ -205,6 +253,9 @@ export class StudentProcessService {
         const capacity = await database.ofertas.updateMany({
           where: {
             id_oferta: offerId,
+            estado: 'PUBLICADA',
+            fecha_inicio_inscripcion: { lte: new Date() },
+            fecha_fin_inscripcion: { gte: new Date() },
             cupo_reservado: { lt: offer.cupo_total },
           },
           data: { cupo_reservado: { increment: 1 } },

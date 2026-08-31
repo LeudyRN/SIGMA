@@ -14,7 +14,11 @@ import {
 } from 'class-validator';
 
 export class CreateCatalogDto {
-  @ApiProperty() @IsString() @Matches(/^[A-Z0-9_-]{2,60}$/) codigo!: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,60}$/)
+  codigo?: string;
   @ApiProperty() @IsString() @MaxLength(150) nombre!: string;
   @ApiPropertyOptional()
   @IsOptional()
@@ -35,7 +39,11 @@ export class UpdateCatalogDto extends PartialType(CreateCatalogDto) {
 }
 
 export class CreatePeriodDto {
-  @ApiProperty() @IsString() @Matches(/^[A-Z0-9_-]{2,30}$/) codigo!: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,30}$/)
+  codigo?: string;
   @ApiProperty() @IsString() @MaxLength(100) nombre!: string;
   @ApiProperty() @IsDateString() fechaInicio!: string;
   @ApiProperty() @IsDateString() fechaFin!: string;
@@ -50,7 +58,11 @@ export class CreatePeriodDto {
 export class UpdatePeriodDto extends PartialType(CreatePeriodDto) {}
 
 export class CreateOfferDto {
-  @ApiProperty() @IsString() @Matches(/^[A-Z0-9_-]{2,50}$/) codigo!: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,50}$/)
+  codigo?: string;
   @ApiProperty() @IsString() @Matches(/^\d+$/) recintoCarreraId!: string;
   @ApiProperty() @IsString() @Matches(/^\d+$/) modalidadId!: string;
   @ApiProperty() @IsString() @Matches(/^\d+$/) periodoId!: string;
