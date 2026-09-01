@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  Upload,
   XCircle,
 } from 'lucide-react';
 import { useMemo, useState, type FormEvent } from 'react';
@@ -19,6 +20,8 @@ import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { apiFetch, apiJson, readApiError } from '@/lib/api';
+import { normalizeTechnicalCode } from '@/lib/catalog-code';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 import { findModuleBySlug } from '@/lib/module-catalog';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -57,6 +60,7 @@ interface DataSet {
   periods?: Item[];
   areas?: Item[];
   requirements?: Item[];
+  accounts?: Item[];
   enrollments?: Item[];
   participationTypes?: Item[];
   students?: Item[];
@@ -80,6 +84,9 @@ interface Field {
   options?: Option[];
   multiple?: boolean;
   readOnly?: boolean;
+  format?: 'technical-code';
+  helpText?: string;
+  maxLength?: number;
   visibleWhen?: { field: string; value: string };
 }
 interface Editor {
@@ -118,6 +125,9 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
   const [editorItem, setEditorItem] = useState<Item | null | undefined>();
   const [viewItem, setViewItem] = useState<Item | undefined>();
   const [form, setForm] = useState<Record<string, string | string[]>>({});
+  const [documentEnrollmentId, setDocumentEnrollmentId] = useState('');
+  const [documentType, setDocumentType] = useState('Propuesta de proyecto');
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const source = useQuery({
     queryKey: ['operations', mode, isStudent],
     queryFn: () => loadMode(mode, isStudent),
@@ -143,6 +153,11 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
     queryFn: () => apiJson<DataSet>('/projects/catalogs'),
     enabled: ['proyectos-grado', 'docentes', 'asesores-jurados'].includes(mode),
   });
+  const paymentCatalogs = useQuery({
+    queryKey: ['operations', 'payment-catalogs'],
+    queryFn: () => apiJson<DataSet>('/payments/catalogs'),
+    enabled: mode === 'metodos-pago' || mode === 'conciliaciones',
+  });
   const items = useMemo(() => normalizeItems(mode, source.data), [mode, source.data]);
   const filtered = useMemo(
     () =>
@@ -161,6 +176,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
     ucotesis: ucotesisCatalogs.data,
     enrollments: enrollmentCatalogs.data,
     projects: projectCatalogs.data,
+    payments: paymentCatalogs.data,
     records: source.data?.items ?? items,
   });
   const save = useMutation({
@@ -197,6 +213,29 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
     onSuccess: () => {
       toast.success('Acción completada correctamente.');
       void client.invalidateQueries({ queryKey: ['operations'] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+  const uploadDocument = useMutation({
+    mutationFn: async () => {
+      if (!documentEnrollmentId) throw new Error('Selecciona una inscripción.');
+      if (!documentType.trim()) throw new Error('Selecciona el tipo de documento.');
+      if (!documentFile) throw new Error('Selecciona un archivo PDF, PNG o JPG.');
+      const body = new FormData();
+      body.append('enrollmentId', documentEnrollmentId);
+      body.append('type', documentType.trim());
+      body.append('file', documentFile);
+      const response = await apiFetch('/student-portal/documents', {
+        method: 'POST',
+        body,
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Documento cargado y enviado a revisión.');
+      setDocumentFile(null);
+      void client.invalidateQueries({ queryKey: ['operations', mode, isStudent] });
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -260,6 +299,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
               ucotesis: ucotesisCatalogs.data,
               enrollments: enrollmentCatalogs.data,
               projects: projectCatalogs.data,
+              payments: paymentCatalogs.data,
               records: source.data?.items ?? items,
             }) && (
               <Button type="button" onClick={openCreate}>
@@ -268,6 +308,20 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
             )}
         </div>
       </header>
+      {mode === 'documentos' && isStudent && (
+        <StudentDocumentUpload
+          enrollments={source.data?.items ?? []}
+          enrollmentId={documentEnrollmentId}
+          documentType={documentType}
+          file={documentFile}
+          pending={uploadDocument.isPending}
+          onEnrollmentChange={setDocumentEnrollmentId}
+          onTypeChange={setDocumentType}
+          onFileChange={setDocumentFile}
+          onSubmit={() => uploadDocument.mutate()}
+        />
+      )}
+      {(mode === 'transacciones' || mode === 'conciliaciones') && <FinancialFlowHelp mode={mode} />}
       <div className="overflow-hidden rounded-3xl border bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b bg-slate-50 p-3 sm:flex-row sm:items-end sm:p-4">
           <label className="min-w-0 flex-1">
@@ -401,6 +455,117 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
         {viewItem && <DetailView item={viewItem} />}
       </EntityDialog>
     </section>
+  );
+}
+
+function StudentDocumentUpload({
+  enrollments,
+  enrollmentId,
+  documentType,
+  file,
+  pending,
+  onEnrollmentChange,
+  onTypeChange,
+  onFileChange,
+  onSubmit,
+}: {
+  enrollments: Item[];
+  enrollmentId: string;
+  documentType: string;
+  file: File | null;
+  pending: boolean;
+  onEnrollmentChange: (value: string) => void;
+  onTypeChange: (value: string) => void;
+  onFileChange: (value: File | null) => void;
+  onSubmit: () => void;
+}) {
+  return (
+    <section className="rounded-3xl border bg-white p-4 shadow-sm sm:p-6">
+      <div className="mb-4">
+        <h2 className="text-lg font-bold text-slate-950">Cargar documento</h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Adjunta el archivo a tu inscripción. Coordinación podrá revisarlo y comunicarte el
+          resultado.
+        </p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1.4fr_auto] lg:items-end">
+        <label>
+          <span className="mb-1.5 block text-xs font-bold text-slate-700">Inscripción *</span>
+          <select
+            required
+            value={enrollmentId}
+            onChange={(event) => onEnrollmentChange(event.target.value)}
+            className="h-11 w-full rounded-xl border bg-white px-3 text-sm"
+          >
+            <option value="">Seleccionar</option>
+            {enrollments.map((enrollment) => (
+              <option key={String(enrollment.id)} value={String(enrollment.id)}>
+                {String(enrollment.code)} ·{' '}
+                {String((enrollment.offer as Item | undefined)?.title ?? '')}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="mb-1.5 block text-xs font-bold text-slate-700">Tipo de documento *</span>
+          <select
+            value={documentType}
+            onChange={(event) => onTypeChange(event.target.value)}
+            className="h-11 w-full rounded-xl border bg-white px-3 text-sm"
+          >
+            {[
+              'Propuesta de proyecto',
+              'Carta de solicitud',
+              'Documento de identidad',
+              'Récord de notas',
+              'Otro documento',
+            ].map((type) => (
+              <option key={type}>{type}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="mb-1.5 block text-xs font-bold text-slate-700">Archivo *</span>
+          <input
+            key={file?.name ?? 'empty-document'}
+            type="file"
+            accept="application/pdf,image/png,image/jpeg"
+            onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+            className="block h-11 w-full rounded-xl border bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1 file:font-semibold file:text-blue-700"
+          />
+        </label>
+        <Button type="button" disabled={pending} onClick={onSubmit}>
+          {pending ? (
+            <LoaderCircle className="size-4 animate-spin" />
+          ) : (
+            <Upload className="size-4" />
+          )}
+          Cargar
+        </Button>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Formatos permitidos: PDF, PNG y JPG. Máximo 8 MB.
+      </p>
+    </section>
+  );
+}
+
+function FinancialFlowHelp({ mode }: { mode: 'transacciones' | 'conciliaciones' }) {
+  const content =
+    mode === 'transacciones'
+      ? {
+          title: '¿Qué registra esta página?',
+          text: 'Cada pago genera automáticamente una transacción. Aquí Tesorería consulta el proveedor, la referencia, la respuesta y si la operación fue aprobada o rechazada.',
+        }
+      : {
+          title: '¿Qué es una conciliación?',
+          text: 'Compara los pagos aprobados de un método y período con sus transacciones. SIGMA señala cuáles coinciden, cuáles presentan diferencias y permite cerrar la revisión.',
+        };
+  return (
+    <aside className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+      <p className="font-bold">{content.title}</p>
+      <p className="mt-1 text-blue-900">{content.text}</p>
+    </aside>
   );
 }
 
@@ -589,6 +754,23 @@ function DataTable({
                       <Download className="size-4" /> PDF
                     </Button>
                   )}
+                  {mode === 'documentos' && item.downloadAvailable !== false && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        onDownload(
+                          isStudent
+                            ? `/student-portal/documents/${item.id}/file`
+                            : `/enrollments/documents/${item.id}/file`,
+                          String(item.name ?? `documento-${item.id}`),
+                        )
+                      }
+                    >
+                      <Download className="size-4" /> Descargar
+                    </Button>
+                  )}
                 </div>
               </td>
             </tr>
@@ -608,6 +790,7 @@ function buildEditor(
     ucotesis?: DataSet;
     enrollments?: DataSet;
     projects?: DataSet;
+    payments?: DataSet;
     records?: Item[];
   },
 ): Editor | null {
@@ -628,6 +811,12 @@ function buildEditor(
           label: mode === 'areas-investigacion' ? 'Código automático' : 'Código',
           required: true,
           readOnly: mode === 'areas-investigacion',
+          format: mode === 'areas-investigacion' ? undefined : 'technical-code',
+          helpText:
+            mode === 'areas-investigacion'
+              ? undefined
+              : 'Se convierte automáticamente a mayúsculas; los espacios se reemplazan por guiones bajos.',
+          maxLength: 60,
         },
         { key: 'nombre', label: 'Nombre', required: true },
         { key: 'descripcion', label: 'Descripción', type: 'textarea' },
@@ -911,7 +1100,13 @@ function buildEditor(
       endpoint: () => '/payments/reconciliations',
       method: 'POST',
       fields: [
-        { key: 'provider', label: 'Banco o proveedor', required: true },
+        {
+          key: 'provider',
+          label: 'Método o proveedor',
+          type: 'select',
+          required: true,
+          options: select(catalogs.payments?.methods, (x) => `${x.name} · ${x.code}`),
+        },
         { key: 'from', label: 'Desde', type: 'datetime-local', required: true },
         { key: 'to', label: 'Hasta', type: 'datetime-local', required: true },
       ],
@@ -1024,7 +1219,11 @@ function buildEditor(
           label: 'Docente',
           type: 'select',
           required: true,
-          options: select(catalogs.projects?.teachers, (x) => `${x.code} · ${x.name}`),
+          options: select(
+            catalogs.projects?.teachers,
+            (x) =>
+              `${x.code} · ${x.name}${Array.isArray(x.roles) ? ` · ${(x.roles as string[]).map(humanizeSystemValue).join(', ')}` : ''}`,
+          ),
         },
         {
           key: 'participationTypeId',
@@ -1128,8 +1327,21 @@ function EditorField({
           readOnly={field.readOnly}
           type={field.type ?? 'text'}
           step={field.type === 'number' ? '0.01' : undefined}
+          maxLength={field.maxLength}
+          pattern={field.format === 'technical-code' ? '[A-Z0-9_-]{2,60}' : undefined}
+          title={
+            field.format === 'technical-code'
+              ? 'Usa entre 2 y 60 letras, números, guiones o guiones bajos.'
+              : undefined
+          }
           value={String(value)}
-          onChange={(event) => onChange(event.target.value)}
+          onChange={(event) =>
+            onChange(
+              field.format === 'technical-code'
+                ? normalizeTechnicalCode(event.target.value)
+                : event.target.value,
+            )
+          }
           className={`${common} ${field.readOnly ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`}
         />
       )}
@@ -1138,9 +1350,13 @@ function EditorField({
           SIGMA reserva este código automáticamente al guardar.
         </span>
       )}
+      {!field.readOnly && field.helpText && (
+        <span className="mt-1 block text-xs text-slate-500">{field.helpText}</span>
+      )}
     </label>
   );
 }
+
 function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }> {
   const map: Partial<Record<OperationsMode, Array<{ key: string; label: string }>>> = {
     modalidades: cols(['code:Código', 'name:Nombre', 'description:Descripción', 'status:Estado']),
@@ -1286,7 +1502,7 @@ function cols(values: string[]) {
     return { key, label };
   });
 }
-function readPath(item: Item, key: string) {
+export function readPath(item: Item, key: string) {
   const value = item[key];
   if (key === 'campusCareer' && value && typeof value === 'object')
     return `${(value as Item).campus} · ${(value as Item).career}`;
@@ -1297,6 +1513,12 @@ function readPath(item: Item, key: string) {
   if (key === 'student' && value && typeof value === 'object')
     return `${(value as Item).registration ?? ''} · ${(value as Item).name ?? ''}`;
   if (key === 'area' && value && typeof value === 'object') return (value as Item).name;
+  if ((key === 'modality' || key === 'period') && value && typeof value === 'object')
+    return (value as Item).name;
+  if (key === 'proof' && value && typeof value === 'object') {
+    const proof = value as Item;
+    return `${humanizeSystemValue(String(proof.status ?? 'PENDIENTE'))} · ${String(proof.name ?? 'Comprobante')}`;
+  }
   if (Array.isArray(value))
     return value
       .map((x) =>
@@ -1321,12 +1543,19 @@ function renderValue(value: unknown) {
     return new Intl.DateTimeFormat('es-DO', { dateStyle: 'medium', timeStyle: 'short' }).format(
       new Date(value),
     );
-  if (typeof value === 'object')
-    return <span className="line-clamp-2">{JSON.stringify(value)}</span>;
-  return <span className="line-clamp-2">{String(value)}</span>;
+  if (typeof value === 'object') {
+    const record = value as Item;
+    const label = record.name ?? record.title ?? record.code ?? record.reference;
+    return (
+      <span className="line-clamp-2">
+        {label ? humanizeSystemValue(String(label)) : 'Consultar detalle'}
+      </span>
+    );
+  }
+  return <span className="line-clamp-2">{humanizeSystemValue(String(value))}</span>;
 }
 function enumOptions(values: string[]): Option[] {
-  return values.map((value) => ({ value, label: value.replaceAll('_', ' ') }));
+  return values.map((value) => ({ value, label: humanizeSystemValue(value) }));
 }
 
 function booleanOptions(): Option[] {
@@ -1611,7 +1840,7 @@ function DetailValue({
         ? 'Imagen'
         : value;
   if ((fieldKey === 'status' || fieldKey === 'accountType') && typeof value === 'string')
-    return value.replaceAll('_', ' ');
+    return humanizeSystemValue(value);
   if (Array.isArray(value)) {
     if (!value.length) return <span className="text-slate-400">Sin registros</span>;
     return (

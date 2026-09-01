@@ -1,19 +1,31 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { createHash, randomUUID } from 'node:crypto';
+import type { Response } from 'express';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
+import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   AddParticipantDto,
   ChangeEnrollmentStatusDto,
   UpsertEnrollmentStateDto,
+  UploadEnrollmentDocumentDto,
   ValidateDocumentDto,
   ValidateRequirementDto,
 } from './dto/enrollments.dto';
+
+export interface UploadedEnrollmentDocument {
+  buffer: Buffer;
+  originalname: string;
+  mimetype: string;
+  size: number;
+}
 
 @Injectable()
 export class EnrollmentsService {
@@ -241,8 +253,8 @@ export class EnrollmentsService {
     documentId: string,
     dto: ValidateDocumentDto,
   ) {
-    try {
-      const row = await this.prisma.documentos_inscripcion.update({
+    const row = await this.prisma.documentos_inscripcion
+      .update({
         where: { id_documento: parseId(documentId) },
         data: {
           estado_validacion: dto.status,
@@ -250,11 +262,134 @@ export class EnrollmentsService {
           validado_por: parseId(userId),
           validado_at: new Date(),
         },
+        include: {
+          inscripciones: {
+            select: {
+              codigo: true,
+              inscripcion_estudiantes: {
+                select: { estudiantes: { select: { id_usuario: true } } },
+              },
+            },
+          },
+        },
+      })
+      .catch(() => {
+        throw new NotFoundException('Documento no encontrado.');
       });
-      return { id: row.id_documento.toString(), status: row.estado_validacion };
-    } catch {
-      throw new NotFoundException('Documento no encontrado.');
-    }
+    await this.notifications
+      .create({
+        userIds: row.inscripciones.inscripcion_estudiantes.map((participant) =>
+          participant.estudiantes.id_usuario.toString(),
+        ),
+        type: 'INSCRIPCION',
+        title:
+          dto.status === 'VALIDO'
+            ? 'Documento validado'
+            : 'Documento requiere corrección',
+        message: `${row.inscripciones.codigo}: ${row.nombre_archivo}${
+          dto.observation?.trim() ? ` · ${dto.observation.trim()}` : ''
+        }`,
+        url: '/app/documentos',
+      })
+      .catch(() => undefined);
+    return { id: row.id_documento.toString(), status: row.estado_validacion };
+  }
+  async uploadStudentDocument(
+    userId: string,
+    dto: UploadEnrollmentDocumentDto,
+    file?: UploadedEnrollmentDocument,
+  ) {
+    validateEnrollmentDocument(file);
+    const user = parseId(userId);
+    const enrollmentId = parseId(dto.enrollmentId);
+    const student = await this.prisma.estudiantes.findFirst({
+      where: {
+        id_usuario: user,
+        usuarios: { estado: 'ACTIVO', deleted_at: null },
+      },
+      select: { id_estudiante: true },
+    });
+    if (!student)
+      throw new NotFoundException('Perfil estudiantil no encontrado.');
+    const enrollment = await this.prisma.inscripciones.findFirst({
+      where: {
+        id_inscripcion: enrollmentId,
+        inscripcion_estudiantes: {
+          some: { id_estudiante: student.id_estudiante },
+        },
+        estados_inscripcion: { codigo: { notIn: ['CANCELADA', 'RECHAZADA'] } },
+      },
+      select: { codigo: true },
+    });
+    if (!enrollment)
+      throw new NotFoundException('Inscripción disponible no encontrada.');
+    const hash = createHash('sha256').update(file.buffer).digest('hex');
+    const row = await this.prisma.documentos_inscripcion.create({
+      data: {
+        id_inscripcion: enrollmentId,
+        id_estudiante: student.id_estudiante,
+        tipo_documento: dto.type.trim(),
+        nombre_archivo: file.originalname.slice(0, 255),
+        ruta_archivo: `db://enrollment-document/${randomUUID()}`,
+        mime_type: file.mimetype,
+        tamano_bytes: BigInt(file.size),
+        hash_sha256: hash,
+        contenido: Uint8Array.from(file.buffer),
+      },
+    });
+    await this.notifications
+      .create({
+        roleCodes: ['ADMIN', 'COORDINADOR'],
+        type: 'INSCRIPCION',
+        title: 'Nuevo documento de inscripción',
+        message: `${enrollment.codigo}: ${dto.type.trim()}`,
+        url: '/app/documentos',
+      })
+      .catch(() => undefined);
+    return {
+      id: row.id_documento.toString(),
+      name: row.nombre_archivo,
+      status: row.estado_validacion,
+    };
+  }
+  async downloadDocument(
+    user: AuthenticatedUser,
+    documentId: string,
+    response: Response,
+  ) {
+    const row = await this.prisma.documentos_inscripcion.findUnique({
+      where: { id_documento: parseId(documentId) },
+      include: {
+        inscripciones: {
+          select: {
+            inscripcion_estudiantes: {
+              select: { estudiantes: { select: { id_usuario: true } } },
+            },
+          },
+        },
+      },
+    });
+    if (!row?.contenido)
+      throw new NotFoundException(
+        'El archivo del documento no está disponible.',
+      );
+    const canManage =
+      user.roles.some((role) => ['ADMIN', 'COORDINADOR'].includes(role)) ||
+      user.permissions.includes('INSCRIPCIONES_GESTIONAR');
+    const ownsDocument = row.inscripciones.inscripcion_estudiantes.some(
+      (participant) => participant.estudiantes.id_usuario === parseId(user.id),
+    );
+    if (!canManage && !ownsDocument)
+      throw new ForbiddenException('No puedes consultar este documento.');
+    response.setHeader(
+      'Content-Type',
+      row.mime_type ?? 'application/octet-stream',
+    );
+    response.setHeader(
+      'Content-Disposition',
+      `inline; filename="${safeFileName(row.nombre_archivo)}"`,
+    );
+    response.send(Buffer.from(row.contenido));
   }
   async createState(dto: UpsertEnrollmentStateDto) {
     try {
@@ -319,7 +454,19 @@ const enrollmentInclude = {
 };
 const enrollmentDetailInclude = {
   ...enrollmentInclude,
-  documentos_inscripcion: true,
+  documentos_inscripcion: {
+    select: {
+      id_documento: true,
+      tipo_documento: true,
+      nombre_archivo: true,
+      ruta_archivo: true,
+      mime_type: true,
+      tamano_bytes: true,
+      estado_validacion: true,
+      observacion: true,
+      created_at: true,
+    },
+  },
   validaciones_requisitos: { include: { requisitos: true, usuarios: true } },
   historial_estados_inscripcion: {
     include: {
@@ -377,6 +524,10 @@ function mapEnrollment(row: EnrollmentRecord) {
       name: x.nombre_archivo,
       status: x.estado_validacion,
       observation: x.observacion,
+      mimeType: x.mime_type,
+      size: x.tamano_bytes ? Number(x.tamano_bytes) : null,
+      uploadedAt: x.created_at,
+      downloadAvailable: x.ruta_archivo.startsWith('db://'),
     })),
     validations: row.validaciones_requisitos.map((x) => ({
       id: x.id_validacion.toString(),
@@ -404,4 +555,18 @@ function parseId(value: string) {
   } catch {
     throw new BadRequestException('Identificador inválido.');
   }
+}
+
+function validateEnrollmentDocument(
+  file?: UploadedEnrollmentDocument,
+): asserts file is UploadedEnrollmentDocument {
+  if (!file) throw new BadRequestException('Debes seleccionar un archivo.');
+  if (!['application/pdf', 'image/png', 'image/jpeg'].includes(file.mimetype))
+    throw new BadRequestException('El documento debe ser PDF, PNG o JPG.');
+  if (file.size > 8 * 1024 * 1024)
+    throw new BadRequestException('El documento no puede superar 8 MB.');
+}
+
+function safeFileName(value: string) {
+  return value.replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 180);
 }

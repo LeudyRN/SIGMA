@@ -239,13 +239,14 @@ export const moduleCatalog: ModuleGroup[] = [
       {
         slug: 'transacciones',
         label: 'Transacciones',
-        description: 'Respuestas de proveedores, autorizaciones y reembolsos.',
+        description: 'Historial automático de cada intento de pago y su respuesta de validación.',
         status: 'available',
       },
       {
         slug: 'conciliaciones',
         label: 'Conciliaciones',
-        description: 'Comparación bancaria, diferencias y cierre.',
+        description:
+          'Comparación de pagos aprobados contra transacciones para detectar diferencias y cerrar el período.',
         status: 'available',
       },
       {

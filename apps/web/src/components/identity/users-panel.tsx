@@ -12,6 +12,7 @@ import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
 import { apiFetch, readApiError } from '@/lib/api';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 
 interface Role {
   id: string;
@@ -217,8 +218,8 @@ export function UsersPanel() {
           </p>
           <h1 className="mt-1 text-3xl font-bold text-slate-950">Usuarios</h1>
           <p className="mt-2 text-slate-600">
-            Administra las cuentas del personal docente, sus códigos de empleado, roles y estado de
-            acceso.
+            Administra las cuentas del personal docente, asesores y jurados, sus códigos de
+            empleado, roles y estado de acceso.
           </p>
         </div>
         <Button type="button" onClick={openCreate}>
@@ -360,7 +361,7 @@ export function UsersPanel() {
                   </td>
                   <td className="p-4">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">
-                      {user.status}
+                      {humanizeSystemValue(user.status)}
                     </span>
                   </td>
                   <td className="p-4 text-slate-500">

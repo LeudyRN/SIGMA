@@ -135,4 +135,41 @@ describe('ProjectsService role workflow', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
     expect(update).not.toHaveBeenCalled();
   });
+
+  it('prevents assigning an advisor user as a jury member', async () => {
+    const upsert = jest.fn();
+    const prisma = {
+      proyectos_grado: {
+        findUnique: jest.fn().mockResolvedValue({ id_proyecto: BigInt(7) }),
+      },
+      docentes: {
+        findFirst: jest.fn().mockResolvedValue({
+          id_docente: BigInt(4),
+          id_usuario: BigInt(14),
+          usuarios: {
+            usuario_roles_usuario_roles_id_usuarioTousuarios: [
+              { roles: { codigo: 'ASESOR' } },
+            ],
+          },
+        }),
+      },
+      tipos_participacion: {
+        findFirst: jest.fn().mockResolvedValue({
+          id_tipo_participacion: BigInt(3),
+          codigo: 'JURADO',
+          nombre: 'Jurado',
+        }),
+      },
+      proyecto_docentes: { upsert },
+    } as unknown as PrismaService;
+    const service = new ProjectsService(prisma, {} as NotificationsService);
+
+    await expect(
+      service.assignTeacher('2', '7', {
+        teacherId: '4',
+        participationTypeId: '3',
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(upsert).not.toHaveBeenCalled();
+  });
 });

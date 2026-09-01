@@ -51,6 +51,14 @@ export class ValidateDocumentDto {
   observation?: string;
 }
 
+export class UploadEnrollmentDocumentDto {
+  @ApiProperty() @IsString() @Matches(/^\d+$/) enrollmentId!: string;
+  @ApiProperty({ example: 'Propuesta de proyecto' })
+  @IsString()
+  @MaxLength(80)
+  type!: string;
+}
+
 export class UpsertEnrollmentStateDto {
   @ApiProperty() @IsString() @Matches(/^[A-Z0-9_-]{2,50}$/) code!: string;
   @ApiProperty() @IsString() @MaxLength(100) name!: string;

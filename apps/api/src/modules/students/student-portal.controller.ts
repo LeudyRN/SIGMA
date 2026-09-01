@@ -1,10 +1,33 @@
-import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiCookieAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Res,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import {
+  ApiConsumes,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Response } from 'express';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Permissions } from '../auth/decorators/permissions.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
+import {
+  EnrollmentsService,
+  type UploadedEnrollmentDocument,
+} from '../enrollments/enrollments.service';
+import { UploadEnrollmentDocumentDto } from '../enrollments/dto/enrollments.dto';
 import { StudentsService } from './students.service';
 import { StudentProcessService } from './student-process.service';
 import {
@@ -21,6 +44,7 @@ export class StudentPortalController {
   constructor(
     private readonly students: StudentsService,
     private readonly process: StudentProcessService,
+    private readonly enrollmentDocuments: EnrollmentsService,
   ) {}
 
   @Get('me')
@@ -62,6 +86,34 @@ export class StudentPortalController {
   @Permissions('INSCRIPCIONES_PROPIAS_GESTIONAR')
   enrollments(@CurrentUser() user: AuthenticatedUser) {
     return this.process.enrollments(user.id);
+  }
+
+  @Post('documents')
+  @Permissions('INSCRIPCIONES_PROPIAS_GESTIONAR')
+  @ApiConsumes('multipart/form-data')
+  @UseInterceptors(
+    FileInterceptor('file', { limits: { fileSize: 8 * 1024 * 1024 } }),
+  )
+  uploadDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UploadEnrollmentDocumentDto,
+    @UploadedFile() file?: UploadedEnrollmentDocument,
+  ) {
+    return this.enrollmentDocuments.uploadStudentDocument(user.id, dto, file);
+  }
+
+  @Get('documents/:documentId/file')
+  @Permissions('INSCRIPCIONES_PROPIAS_GESTIONAR')
+  downloadDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('documentId') documentId: string,
+    @Res() response: Response,
+  ) {
+    return this.enrollmentDocuments.downloadDocument(
+      user,
+      documentId,
+      response,
+    );
   }
 
   @Post('enrollments')

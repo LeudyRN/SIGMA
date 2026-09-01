@@ -70,6 +70,25 @@ JOIN permisos p ON p.codigo IN (
 )
 WHERE r.codigo = 'DOCENTE';
 
+INSERT INTO roles (codigo, nombre, descripcion, estado) VALUES
+('ASESOR', 'Asesor de proyecto', 'Acompañamiento académico de proyectos de grado.', 'ACTIVO'),
+('JURADO', 'Jurado evaluador', 'Evaluación de proyectos de grado.', 'ACTIVO')
+ON DUPLICATE KEY UPDATE
+  nombre = VALUES(nombre),
+  descripcion = VALUES(descripcion),
+  estado = 'ACTIVO';
+
+INSERT IGNORE INTO rol_permisos (id_rol, id_permiso)
+SELECT r.id_rol, p.id_permiso
+FROM roles r
+JOIN permisos p ON p.codigo IN (
+  'GENERAL_RESUMEN_LEER',
+  'UCOTESIS_OFERTAS_LEER',
+  'PROYECTOS_PARTICIPAR',
+  'NOTIFICACIONES_AUTOGESTIONAR'
+)
+WHERE r.codigo IN ('ASESOR', 'JURADO');
+
 INSERT IGNORE INTO rol_permisos (id_rol, id_permiso)
 SELECT r.id_rol, p.id_permiso
 FROM roles r

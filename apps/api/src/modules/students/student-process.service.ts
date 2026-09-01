@@ -127,6 +127,20 @@ export class StudentProcessService {
               },
               orderBy: { created_at: 'desc' },
             },
+            documentos_inscripcion: {
+              select: {
+                id_documento: true,
+                tipo_documento: true,
+                nombre_archivo: true,
+                ruta_archivo: true,
+                mime_type: true,
+                tamano_bytes: true,
+                estado_validacion: true,
+                observacion: true,
+                created_at: true,
+              },
+              orderBy: { created_at: 'desc' },
+            },
           },
         },
       },
@@ -168,6 +182,17 @@ export class StudentProcessService {
                 pdfUrl: payment.facturas.pdf_url,
               }
             : null,
+        })),
+        documents: enrollment.documentos_inscripcion.map((document) => ({
+          id: document.id_documento.toString(),
+          type: document.tipo_documento,
+          name: document.nombre_archivo,
+          status: document.estado_validacion,
+          observation: document.observacion,
+          mimeType: document.mime_type,
+          size: document.tamano_bytes ? Number(document.tamano_bytes) : null,
+          uploadedAt: document.created_at,
+          downloadAvailable: document.ruta_archivo.startsWith('db://'),
         })),
       })),
     };
@@ -345,15 +370,28 @@ export class StudentProcessService {
       where: { id_metodo_pago: parseId(dto.paymentMethodId), estado: 'ACTIVO' },
     });
     if (!method) throw new BadRequestException('Método de pago no disponible.');
+    const reference = `PAY-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`;
     const payment = await this.prisma.pagos.create({
       data: {
         id_inscripcion: enrollmentId,
         id_metodo_pago: method.id_metodo_pago,
-        referencia: `PAY-${Date.now()}-${randomUUID().slice(0, 8).toUpperCase()}`,
+        referencia: reference,
         idempotency_key: dto.idempotencyKey,
         monto: enrollment.monto_aplicado,
         moneda: enrollment.moneda,
         estado: 'PENDIENTE',
+        transacciones_pago: {
+          create: {
+            proveedor: method.codigo,
+            tipo: 'VENTA',
+            estado: 'PENDIENTE',
+            request_reference: reference,
+            request_payload: {
+              enrollmentId: enrollmentId.toString(),
+              paymentMethod: method.codigo,
+            },
+          },
+        },
       },
     });
     return {

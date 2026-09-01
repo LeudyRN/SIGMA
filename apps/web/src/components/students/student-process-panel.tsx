@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { apiFetch, readApiError } from '@/lib/api';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 
 type ProcessMode = 'offers' | 'enrollments' | 'payments' | 'invoices';
 interface Offer {
@@ -147,9 +148,7 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
           <LoaderCircle className="mx-auto size-6 animate-spin" />
         </p>
       )}
-      {mode === 'offers' && offers.isError && (
-        <LoadError onRetry={() => void offers.refetch()} />
-      )}
+      {mode === 'offers' && offers.isError && <LoadError onRetry={() => void offers.refetch()} />}
       {mode !== 'offers' && enrollments.isError && (
         <LoadError onRetry={() => void enrollments.refetch()} />
       )}
@@ -310,9 +309,7 @@ function PaymentCard({
   onPay: (formData: FormData) => void;
 }) {
   const latest = enrollment.payments[0];
-  const payable = ['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGO_PROCESANDO'].includes(
-    enrollment.status,
-  );
+  const payable = ['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGO_PROCESANDO'].includes(enrollment.status);
   const [accountId, setAccountId] = useState('');
   const [reference, setReference] = useState('');
   const [paidAt, setPaidAt] = useState('');
@@ -330,11 +327,11 @@ function PaymentCard({
         <div className="mt-4 rounded-xl bg-slate-50 p-4">
           <p className="text-sm font-semibold">{latest.reference}</p>
           <p className="mt-1 text-xs text-slate-500">
-            {latest.method} · {latest.status}
+            {latest.method} · {humanizeSystemValue(latest.status)}
           </p>
           {latest.proofStatus && (
             <p className="mt-2 text-xs font-bold text-blue-700">
-              Comprobante: {latest.proofStatus}
+              Comprobante: {humanizeSystemValue(latest.proofStatus)}
             </p>
           )}
           {latest.proofObservation && (
@@ -343,8 +340,7 @@ function PaymentCard({
         </div>
       ) : !payable ? (
         <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
-          Esta inscripción se encuentra en estado {enrollment.statusName} y no admite nuevos
-          pagos.
+          Esta inscripción se encuentra en estado {enrollment.statusName} y no admite nuevos pagos.
         </p>
       ) : (
         <div className="mt-4">
@@ -368,8 +364,8 @@ function PaymentCard({
           >
             {!accounts.length && (
               <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800 sm:col-span-2">
-                UCOTESIS todavía no ha configurado una cuenta bancaria activa. No podrás enviar
-                la transferencia hasta que se publique una.
+                UCOTESIS todavía no ha configurado una cuenta bancaria activa. No podrás enviar la
+                transferencia hasta que se publique una.
               </p>
             )}
             <label className="sm:col-span-2">

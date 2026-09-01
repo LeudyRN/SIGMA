@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
@@ -17,7 +18,11 @@ export class CreateCatalogDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  @Matches(/^[A-Z0-9_-]{2,60}$/)
+  @Transform(({ value }: { value: unknown }) => normalizeCatalogCode(value))
+  @Matches(/^[A-Z0-9_-]{2,60}$/, {
+    message:
+      'El código debe contener entre 2 y 60 letras, números, guiones o guiones bajos.',
+  })
   codigo?: string;
   @ApiProperty() @IsString() @MaxLength(150) nombre!: string;
   @ApiPropertyOptional()
@@ -102,3 +107,13 @@ export class CreateOfferDto {
 }
 
 export class UpdateOfferDto extends PartialType(CreateOfferDto) {}
+
+export function normalizeCatalogCode(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_');
+}

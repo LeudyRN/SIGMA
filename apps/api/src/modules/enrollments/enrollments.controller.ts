@@ -6,9 +6,11 @@ import {
   Param,
   Patch,
   Post,
+  Res,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -76,6 +78,13 @@ export class EnrollmentsController {
     @Body() dto: ValidateDocumentDto,
   ) {
     return this.service.validateDocument(user.id, documentId, dto);
+  }
+  @Get('documents/:documentId/file') downloadDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('documentId') documentId: string,
+    @Res() response: Response,
+  ) {
+    return this.service.downloadDocument(user, documentId, response);
   }
   @Post('states') createState(@Body() dto: UpsertEnrollmentStateDto) {
     return this.service.createState(dto);

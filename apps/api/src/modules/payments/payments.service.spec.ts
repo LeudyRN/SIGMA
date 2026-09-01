@@ -123,6 +123,8 @@ describe('PaymentsService', () => {
       { data: { estado: string }; where: unknown } | undefined;
     let capturedEnrollmentUpdate:
       { data: { id_estado: bigint }; where: unknown } | undefined;
+    let capturedTransactionUpdate:
+      { data: { estado: string }; where: unknown } | undefined;
     const updatePayment = jest.fn(
       (args: { data: { estado: string }; where: unknown }): Promise<object> => {
         capturedPaymentUpdate = args;
@@ -138,9 +140,18 @@ describe('PaymentsService', () => {
         return Promise.resolve({});
       },
     );
+    const updateTransaction = jest.fn(
+      (args: { data: { estado: string }; where: unknown }): Promise<object> => {
+        capturedTransactionUpdate = args;
+        return Promise.resolve({ count: 1 });
+      },
+    );
     const db = {
       pagos: { update: updatePayment },
       comprobantes_transferencia: { update: jest.fn().mockResolvedValue({}) },
+      transacciones_pago: {
+        updateMany: updateTransaction,
+      },
       facturas: {
         create: jest.fn().mockResolvedValue({
           id_factura: BigInt(9),
@@ -176,6 +187,56 @@ describe('PaymentsService', () => {
     expect(capturedPaymentUpdate?.data.estado).toBe('APROBADO');
     expect(capturedEnrollmentUpdate?.data.id_estado).toBe(BigInt(8));
     expect(db.facturas.create).toHaveBeenCalledTimes(1);
+    expect(capturedTransactionUpdate?.data.estado).toBe('APROBADA');
     expect(createNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('reconciles approved payments against their approved transactions', async () => {
+    let reconciliationData: Record<string, unknown> | undefined;
+    const prisma = {
+      metodos_pago: {
+        findFirst: jest.fn().mockResolvedValue({
+          id_metodo_pago: BigInt(3),
+          codigo: 'TRANSFERENCIA',
+        }),
+      },
+      pagos: {
+        findMany: jest.fn().mockResolvedValue([
+          {
+            id_pago: BigInt(8),
+            monto: 5000,
+            transacciones_pago: [{ id_transaccion: BigInt(4) }],
+          },
+        ]),
+      },
+      conciliaciones_pago: {
+        create: jest.fn((query: { data: Record<string, unknown> }) => {
+          reconciliationData = query.data;
+          return Promise.resolve({
+            id_conciliacion: BigInt(2),
+            codigo: 'CON-2',
+          });
+        }),
+      },
+    } as unknown as PrismaService;
+    const service = new PaymentsService(
+      prisma,
+      {} as NotificationsService,
+      {} as InvoicePdfService,
+    );
+
+    const result = await service.createReconciliation('2', {
+      provider: 'TRANSFERENCIA',
+      from: '2026-08-01T00:00:00.000Z',
+      to: '2026-08-31T23:59:59.000Z',
+    });
+
+    expect(result.code).toBe('CON-2');
+    expect(reconciliationData).toMatchObject({
+      proveedor: 'TRANSFERENCIA',
+      total_registros: 1,
+      total_monto: 5000,
+      estado: 'PROCESADA',
+    });
   });
 });

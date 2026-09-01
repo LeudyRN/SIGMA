@@ -189,6 +189,7 @@ model documentos_inscripcion {
   mime_type         String?                                  @db.VarChar(120)
   tamano_bytes      BigInt?                                  @db.UnsignedBigInt
   hash_sha256       String?                                  @db.Char(64)
+  contenido         Bytes?                                   @db.LongBlob
   estado_validacion documentos_inscripcion_estado_validacion @default(PENDIENTE)
   validado_por      BigInt?                                  @db.UnsignedBigInt
   validado_at       DateTime?                                @db.DateTime(0)

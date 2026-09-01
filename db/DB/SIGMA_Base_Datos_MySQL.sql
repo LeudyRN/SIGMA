@@ -595,6 +595,7 @@ CREATE TABLE documentos_inscripcion (
     mime_type VARCHAR(120) NULL,
     tamano_bytes BIGINT UNSIGNED NULL,
     hash_sha256 CHAR(64) NULL,
+    contenido LONGBLOB NULL,
     estado_validacion ENUM('PENDIENTE','VALIDO','RECHAZADO') NOT NULL DEFAULT 'PENDIENTE',
     validado_por BIGINT UNSIGNED NULL,
     validado_at DATETIME NULL,
@@ -950,7 +951,9 @@ INSERT INTO roles (codigo, nombre, descripcion) VALUES
 ('COORDINADOR', 'Coordinador UCOTESIS', 'Gestión académica y de ofertas de UCOTESIS'),
 ('TESORERIA', 'Tesorería / Cajero Virtual', 'Supervisión de pagos y conciliaciones'),
 ('ESTUDIANTE', 'Estudiante', 'Consulta, elegibilidad, inscripción y pagos'),
-('DOCENTE', 'Docente', 'Asesoría, jurado y participación académica');
+('DOCENTE', 'Docente', 'Docencia y participación académica'),
+('ASESOR', 'Asesor de proyecto', 'Acompañamiento académico de proyectos de grado'),
+('JURADO', 'Jurado evaluador', 'Evaluación de proyectos de grado');
 
 INSERT INTO permisos (codigo, nombre, descripcion, modulo) VALUES
 ('IDENTIDAD_USUARIOS_LEER', 'Consultar usuarios', 'Permite consultar usuarios y sus roles.', 'IDENTIDAD'),
@@ -1012,6 +1015,15 @@ JOIN permisos p ON p.codigo IN (
     'PROYECTOS_PARTICIPAR', 'NOTIFICACIONES_AUTOGESTIONAR'
 )
 WHERE r.codigo = 'DOCENTE';
+
+INSERT IGNORE INTO rol_permisos (id_rol, id_permiso)
+SELECT r.id_rol, p.id_permiso
+FROM roles r
+JOIN permisos p ON p.codigo IN (
+    'GENERAL_RESUMEN_LEER', 'UCOTESIS_OFERTAS_LEER',
+    'PROYECTOS_PARTICIPAR', 'NOTIFICACIONES_AUTOGESTIONAR'
+)
+WHERE r.codigo IN ('ASESOR', 'JURADO');
 
 INSERT INTO rol_permisos (id_rol, id_permiso)
 SELECT r.id_rol, p.id_permiso

@@ -31,14 +31,14 @@ export class ProjectsService {
   ) {
     assertProjectAccess(user);
     const staff = isManager(user);
-    const teacher = user.roles.includes('DOCENTE')
+    const teacher = hasAcademicStaffRole(user)
       ? await this.prisma.docentes.findUnique({
           where: { id_usuario: parseId(user.id) },
         })
       : null;
     if (
       !staff &&
-      user.roles.includes('DOCENTE') &&
+      hasAcademicStaffRole(user) &&
       !user.roles.includes('ESTUDIANTE') &&
       !teacher
     )
@@ -114,11 +114,24 @@ export class ProjectsService {
                 estado: 'ACTIVO',
                 deleted_at: null,
                 usuario_roles_usuario_roles_id_usuarioTousuarios: {
-                  some: { roles: { codigo: 'DOCENTE', estado: 'ACTIVO' } },
+                  some: {
+                    roles: {
+                      codigo: { in: ACADEMIC_STAFF_ROLE_CODES },
+                      estado: 'ACTIVO',
+                    },
+                  },
                 },
               },
             },
-            include: { usuarios: true },
+            include: {
+              usuarios: {
+                include: {
+                  usuario_roles_usuario_roles_id_usuarioTousuarios: {
+                    include: { roles: true },
+                  },
+                },
+              },
+            },
             orderBy: { usuarios: { apellidos: 'asc' } },
           })
         : [],
@@ -154,6 +167,9 @@ export class ProjectsService {
         id: x.id_docente.toString(),
         code: x.codigo_docente,
         name: `${x.usuarios.nombres} ${x.usuarios.apellidos}`,
+        roles: x.usuarios.usuario_roles_usuario_roles_id_usuarioTousuarios
+          .map(({ roles }) => roles.codigo)
+          .filter((code) => ACADEMIC_STAFF_ROLE_CODES.includes(code)),
       })),
       participationTypes: types.map((x) => ({
         id: x.id_tipo_participacion.toString(),
@@ -325,7 +341,21 @@ export class ProjectsService {
             estado: 'ACTIVO',
             deleted_at: null,
             usuario_roles_usuario_roles_id_usuarioTousuarios: {
-              some: { roles: { codigo: 'DOCENTE', estado: 'ACTIVO' } },
+              some: {
+                roles: {
+                  codigo: { in: ACADEMIC_STAFF_ROLE_CODES },
+                  estado: 'ACTIVO',
+                },
+              },
+            },
+          },
+        },
+        include: {
+          usuarios: {
+            include: {
+              usuario_roles_usuario_roles_id_usuarioTousuarios: {
+                include: { roles: true },
+              },
             },
           },
         },
@@ -339,7 +369,15 @@ export class ProjectsService {
     ]);
     if (!project || !teacher || !participationType)
       throw new BadRequestException(
-        'Selecciona un proyecto, un usuario con rol Docente y una participación activos.',
+        'Selecciona un proyecto, un asesor o jurado activo y una participación disponible.',
+      );
+    const teacherRoles =
+      teacher.usuarios.usuario_roles_usuario_roles_id_usuarioTousuarios.map(
+        ({ roles }) => roles.codigo,
+      );
+    if (!canTakeParticipation(teacherRoles, participationType.codigo))
+      throw new BadRequestException(
+        `El usuario seleccionado no tiene un rol compatible con ${participationType.nombre}.`,
       );
     try {
       await this.prisma.proyecto_docentes.upsert({
@@ -500,11 +538,27 @@ function resolveProjectArea(
 function assertProjectAccess(user: AuthenticatedUser) {
   if (
     !isManager(user) &&
-    !user.roles.some((role) => ['ESTUDIANTE', 'DOCENTE'].includes(role))
+    !user.roles.some((role) =>
+      ['ESTUDIANTE', ...ACADEMIC_STAFF_ROLE_CODES].includes(role),
+    )
   )
     throw new ForbiddenException(
       'Tu rol no tiene acceso a proyectos de grado.',
     );
+}
+
+const ACADEMIC_STAFF_ROLE_CODES = ['DOCENTE', 'ASESOR', 'JURADO'];
+
+function hasAcademicStaffRole(user: AuthenticatedUser) {
+  return user.roles.some((role) => ACADEMIC_STAFF_ROLE_CODES.includes(role));
+}
+
+function canTakeParticipation(roleCodes: string[], participationCode: string) {
+  if (roleCodes.includes('DOCENTE')) return true;
+  if (participationCode === 'JURADO') return roleCodes.includes('JURADO');
+  if (['ASESOR', 'COASESOR'].includes(participationCode))
+    return roleCodes.includes('ASESOR');
+  return false;
 }
 function parseId(value: string) {
   try {

@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
 import { apiFetch, readApiError } from '@/lib/api';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 
 interface SessionItem {
   id: string;
@@ -116,7 +117,7 @@ export function SessionsPanel() {
                     </span>
                   )}
                   <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold">
-                    {session.status}
+                    {humanizeSystemValue(session.status)}
                   </span>
                 </div>
                 <p className="mt-1 truncate text-sm text-slate-600">

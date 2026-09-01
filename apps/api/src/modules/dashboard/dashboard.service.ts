@@ -17,7 +17,10 @@ export class DashboardService {
     if (user.roles.includes('ESTUDIANTE'))
       return this.studentSummary(user, now);
     if (user.roles.includes('TESORERIA')) return this.treasurySummary(now);
-    if (user.roles.includes('DOCENTE')) return this.teacherSummary(user, now);
+    if (
+      user.roles.some((role) => ['DOCENTE', 'ASESOR', 'JURADO'].includes(role))
+    )
+      return this.teacherSummary(user, now);
 
     const [
       totalUsers,
