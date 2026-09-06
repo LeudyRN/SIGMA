@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
+import { EnrollmentsModule } from '../enrollments/enrollments.module';
 import { AcademicHistoryParserService } from './academic-history-parser.service';
 import { AcademicHistoryPdfService } from './academic-history-pdf.service';
 import { AcademicHistoryTransferService } from './academic-history-transfer.service';
@@ -9,7 +10,7 @@ import { StudentsService } from './students.service';
 import { StudentProcessService } from './student-process.service';
 
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, EnrollmentsModule],
   controllers: [StudentsController, StudentPortalController],
   providers: [
     StudentsService,

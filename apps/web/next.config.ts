@@ -6,7 +6,7 @@ const configuredApiUrl =
 const apiOrigin = configuredApiUrl.replace(/\/api\/?$/, '').replace(/\/$/, '');
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ['10.0.0.2'],
+  allowedDevOrigins: ['10.0.0.61'],
 
   async rewrites() {
     return [

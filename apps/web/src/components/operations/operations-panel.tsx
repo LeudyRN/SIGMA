@@ -11,14 +11,18 @@ import {
   RefreshCw,
   Search,
   Trash2,
+  Upload,
   XCircle,
 } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
+import { DocumentRequestsPanel } from './document-requests-panel';
 import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { apiFetch, apiJson, readApiError } from '@/lib/api';
+import { normalizeTechnicalCode } from '@/lib/catalog-code';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 import { findModuleBySlug } from '@/lib/module-catalog';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -47,6 +51,7 @@ export type OperationsMode =
 
 type Item = Record<string, unknown> & { id?: string };
 interface DataSet {
+  nextCode?: string;
   items?: Item[];
   states?: Item[];
   methods?: Item[];
@@ -56,6 +61,7 @@ interface DataSet {
   periods?: Item[];
   areas?: Item[];
   requirements?: Item[];
+  accounts?: Item[];
   enrollments?: Item[];
   participationTypes?: Item[];
   students?: Item[];
@@ -78,6 +84,11 @@ interface Field {
   required?: boolean;
   options?: Option[];
   multiple?: boolean;
+  readOnly?: boolean;
+  format?: 'technical-code';
+  helpText?: string;
+  maxLength?: number;
+  visibleWhen?: { field: string; value: string };
 }
 interface Editor {
   title: string;
@@ -115,30 +126,41 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
   const [editorItem, setEditorItem] = useState<Item | null | undefined>();
   const [viewItem, setViewItem] = useState<Item | undefined>();
   const [form, setForm] = useState<Record<string, string | string[]>>({});
+  const [documentEnrollmentId, setDocumentEnrollmentId] = useState('');
+  const [documentRequestId, setDocumentRequestId] = useState('');
+  const [documentType, setDocumentType] = useState('Propuesta de proyecto');
+  const [documentFile, setDocumentFile] = useState<File | null>(null);
   const source = useQuery({
-    queryKey: ['operations', mode, isStudent],
+    queryKey: ['operations', mode, isStudent, user?.id],
     queryFn: () => loadMode(mode, isStudent),
   });
   const ucotesisCatalogs = useQuery({
     queryKey: ['operations', 'ucotesis-catalogs'],
     queryFn: () => apiJson<DataSet>('/ucotesis/catalogs'),
-    enabled: mode === 'ofertas' || mode === 'validaciones',
+    enabled: canManage && (mode === 'ofertas' || mode === 'validaciones'),
   });
   const enrollmentCatalogs = useQuery({
     queryKey: ['operations', 'enrollment-catalogs'],
     queryFn: () => apiJson<DataSet>('/enrollments/catalogs'),
-    enabled: [
-      'inscripciones',
-      'sustentantes',
-      'validaciones',
-      'estados-inscripcion',
-      'documentos',
-    ].includes(mode),
+    enabled:
+      !isStudent &&
+      [
+        'inscripciones',
+        'sustentantes',
+        'validaciones',
+        'estados-inscripcion',
+        'documentos',
+      ].includes(mode),
   });
   const projectCatalogs = useQuery({
     queryKey: ['operations', 'project-catalogs'],
     queryFn: () => apiJson<DataSet>('/projects/catalogs'),
     enabled: ['proyectos-grado', 'docentes', 'asesores-jurados'].includes(mode),
+  });
+  const paymentCatalogs = useQuery({
+    queryKey: ['operations', 'payment-catalogs'],
+    queryFn: () => apiJson<DataSet>('/payments/catalogs'),
+    enabled: mode === 'metodos-pago' || mode === 'conciliaciones',
   });
   const items = useMemo(() => normalizeItems(mode, source.data), [mode, source.data]);
   const filtered = useMemo(
@@ -154,9 +176,11 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
   const pagination = usePagination(filtered, 10);
   const editor = buildEditor(mode, editorItem ?? null, {
     canManage,
+    isStudent,
     ucotesis: ucotesisCatalogs.data,
     enrollments: enrollmentCatalogs.data,
     projects: projectCatalogs.data,
+    payments: paymentCatalogs.data,
     records: source.data?.items ?? items,
   });
   const save = useMutation({
@@ -196,9 +220,33 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
     },
     onError: (error: Error) => toast.error(error.message),
   });
+  const uploadDocument = useMutation({
+    mutationFn: async () => {
+      if (!documentEnrollmentId) throw new Error('Selecciona una inscripción.');
+      if (!documentType.trim()) throw new Error('Selecciona el tipo de documento.');
+      if (!documentFile) throw new Error('Selecciona un archivo PDF, PNG o JPG.');
+      const body = new FormData();
+      body.append('enrollmentId', documentEnrollmentId);
+      body.append('type', documentType.trim());
+      if (documentRequestId) body.append('requestId', documentRequestId);
+      body.append('file', documentFile);
+      const response = await apiFetch('/student-portal/documents', {
+        method: 'POST',
+        body,
+      });
+      if (!response.ok) throw new Error(await readApiError(response));
+      return response.json();
+    },
+    onSuccess: () => {
+      toast.success('Documento cargado y enviado a revisión.');
+      setDocumentFile(null);
+      void client.invalidateQueries({ queryKey: ['operations', mode, isStudent] });
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
 
   const openCreate = () => {
-    setForm(defaultForm(mode));
+    setForm(defaultForm(mode, source.data?.nextCode));
     setEditorItem(null);
   };
   const openStatus = (item: Item) => {
@@ -212,12 +260,39 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
       return setEditorItem(item);
     }
     if (kind === 'status') return openStatus(item);
+    if (kind === 'reject-document') {
+      const observation = window.prompt('Indica qué debe corregir el estudiante:');
+      if (!observation?.trim()) return;
+      action.mutate({
+        path: `/enrollments/documents/${item.id}`,
+        body: { status: 'RECHAZADO', observation: observation.trim() },
+      });
+      return;
+    }
     const operation = destructiveOperation(mode, kind, item);
     if (!operation) return;
     if (operation.confirm && !window.confirm(operation.confirm)) return;
     action.mutate(operation);
   };
   const statusOptions = [...new Set(items.map((x) => String(x.status ?? '')).filter(Boolean))];
+  const downloadFile = async (path: string, fallbackName: string) => {
+    try {
+      const response = await apiFetch(path);
+      if (!response.ok) throw new Error(await readApiError(response));
+      const disposition = response.headers.get('content-disposition');
+      const name = disposition?.match(/filename="?([^";]+)"?/i)?.[1] ?? fallbackName;
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = name;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No fue posible descargar el archivo.');
+    }
+  };
   return (
     <section className="w-full space-y-5">
       <header className="rounded-3xl border bg-white p-5 shadow-sm sm:p-7">
@@ -234,9 +309,11 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
           {canCreateMode(mode, canManage, isStudent) &&
             buildEditor(mode, null, {
               canManage,
+              isStudent,
               ucotesis: ucotesisCatalogs.data,
               enrollments: enrollmentCatalogs.data,
               projects: projectCatalogs.data,
+              payments: paymentCatalogs.data,
               records: source.data?.items ?? items,
             }) && (
               <Button type="button" onClick={openCreate}>
@@ -245,6 +322,40 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
             )}
         </div>
       </header>
+      {mode === 'documentos' && !source.isPending && !source.isError && (
+        <DocumentRequestsPanel
+          enrollments={source.data?.items ?? []}
+          isStudent={isStudent}
+          canManage={canManage}
+          onSelect={(enrollmentId, requestId, type) => {
+            setDocumentEnrollmentId(enrollmentId);
+            setDocumentRequestId(requestId);
+            setDocumentType(type);
+          }}
+        />
+      )}
+      {mode === 'documentos' && isStudent && Boolean(source.data?.items?.length) && (
+        <StudentDocumentUpload
+          enrollments={(source.data?.items ?? []).filter(
+            (e) => !['CANCELADA', 'RECHAZADA'].includes(String(e.status)),
+          )}
+          enrollmentId={documentEnrollmentId}
+          documentType={documentType}
+          file={documentFile}
+          pending={uploadDocument.isPending}
+          onEnrollmentChange={(id) => {
+            setDocumentEnrollmentId(id);
+            setDocumentRequestId('');
+          }}
+          onTypeChange={(type) => {
+            setDocumentType(type);
+            setDocumentRequestId('');
+          }}
+          onFileChange={setDocumentFile}
+          onSubmit={() => uploadDocument.mutate()}
+        />
+      )}
+      {(mode === 'transacciones' || mode === 'conciliaciones') && <FinancialFlowHelp mode={mode} />}
       <div className="overflow-hidden rounded-3xl border bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b bg-slate-50 p-3 sm:flex-row sm:items-end sm:p-4">
           <label className="min-w-0 flex-1">
@@ -287,14 +398,16 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
           </p>
         ) : source.isError ? (
           <p className="p-10 text-center text-red-700">
-            No fue posible cargar el módulo desde la base de datos.
+            No fue posible cargar el módulo. {source.error.message}
           </p>
         ) : (
           <DataTable
             mode={mode}
             items={pagination.pageItems}
             canManage={canManage}
+            isStudent={isStudent}
             onAction={handleRowAction}
+            onDownload={(path, name) => void downloadFile(path, name)}
             onReview={(item, decision) =>
               action.mutate({
                 path: `/payments/${item.id}/review`,
@@ -307,9 +420,11 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
             }
           />
         )}
-        {!source.isPending && filtered.length === 0 && (
+        {!source.isPending && !source.isError && filtered.length === 0 && (
           <p className="border-t border-dashed p-10 text-center text-sm text-slate-500">
-            No hay registros para los filtros seleccionados.
+            {mode === 'proyectos-grado' && !canManage && !isStudent && !search && !status
+              ? 'No tienes proyectos asignados. Coordinación debe asignarte como asesor o jurado para que aparezcan aquí.'
+              : 'No hay registros para los filtros seleccionados.'}
           </p>
         )}
         <Pagination
@@ -346,14 +461,19 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
               save.mutate();
             }}
           >
-            {editor.fields.map((field) => (
-              <EditorField
-                key={field.key}
-                field={field}
-                value={form[field.key] ?? ''}
-                onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))}
-              />
-            ))}
+            {editor.fields
+              .filter(
+                (field) =>
+                  !field.visibleWhen || form[field.visibleWhen.field] === field.visibleWhen.value,
+              )
+              .map((field) => (
+                <EditorField
+                  key={field.key}
+                  field={field}
+                  value={form[field.key] ?? ''}
+                  onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))}
+                />
+              ))}
           </form>
         )}
       </EntityDialog>
@@ -371,6 +491,126 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
         {viewItem && <DetailView item={viewItem} />}
       </EntityDialog>
     </section>
+  );
+}
+
+function StudentDocumentUpload({
+  enrollments,
+  enrollmentId,
+  documentType,
+  file,
+  pending,
+  onEnrollmentChange,
+  onTypeChange,
+  onFileChange,
+  onSubmit,
+}: {
+  enrollments: Item[];
+  enrollmentId: string;
+  documentType: string;
+  file: File | null;
+  pending: boolean;
+  onEnrollmentChange: (value: string) => void;
+  onTypeChange: (value: string) => void;
+  onFileChange: (value: File | null) => void;
+  onSubmit: () => void;
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!file && fileInputRef.current) fileInputRef.current.value = '';
+  }, [file]);
+  return (
+    <section className="rounded-3xl border bg-white p-4 shadow-sm sm:p-6">
+      <div className="mb-4">
+        <h2 id="document-upload" className="text-lg font-bold text-slate-950">
+          Cargar documento
+        </h2>
+        <p className="mt-1 text-sm text-slate-600">
+          Adjunta el archivo a tu inscripción. Coordinación podrá revisarlo y comunicarte el
+          resultado.
+        </p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_1fr_1.4fr_auto] lg:items-end">
+        <label>
+          <span className="mb-1.5 block text-xs font-bold text-slate-700">Inscripción *</span>
+          <select
+            required
+            value={enrollmentId}
+            onChange={(event) => onEnrollmentChange(event.target.value)}
+            className="h-11 w-full rounded-xl border bg-white px-3 text-sm"
+          >
+            <option value="">Seleccionar</option>
+            {enrollments.map((enrollment) => (
+              <option key={String(enrollment.id)} value={String(enrollment.id)}>
+                {String(enrollment.code)} ·{' '}
+                {String((enrollment.offer as Item | undefined)?.title ?? '')}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="mb-1.5 block text-xs font-bold text-slate-700">Tipo de documento *</span>
+          <select
+            value={documentType}
+            onChange={(event) => onTypeChange(event.target.value)}
+            className="h-11 w-full rounded-xl border bg-white px-3 text-sm"
+          >
+            {[
+              ...new Set([
+                documentType,
+                'Propuesta de proyecto',
+                'Carta de solicitud',
+                'Documento de identidad',
+                'Récord de notas',
+                'Otro documento',
+              ]),
+            ].map((type) => (
+              <option key={type}>{type}</option>
+            ))}
+          </select>
+        </label>
+        <label>
+          <span className="mb-1.5 block text-xs font-bold text-slate-700">Archivo *</span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="application/pdf,image/png,image/jpeg"
+            onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
+            className="block h-11 w-full rounded-xl border bg-white px-3 py-2 text-sm file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1 file:font-semibold file:text-blue-700"
+          />
+        </label>
+        <Button type="button" disabled={pending} onClick={onSubmit}>
+          {pending ? (
+            <LoaderCircle className="size-4 animate-spin" />
+          ) : (
+            <Upload className="size-4" />
+          )}
+          Cargar
+        </Button>
+      </div>
+      <p className="mt-3 text-xs text-slate-500">
+        Formatos permitidos: PDF, PNG y JPG. Máximo 8 MB.
+      </p>
+    </section>
+  );
+}
+
+function FinancialFlowHelp({ mode }: { mode: 'transacciones' | 'conciliaciones' }) {
+  const content =
+    mode === 'transacciones'
+      ? {
+          title: '¿Qué registra esta página?',
+          text: 'Cada pago genera automáticamente una transacción. Aquí Tesorería consulta el proveedor, la referencia, la respuesta y si la operación fue aprobada o rechazada.',
+        }
+      : {
+          title: '¿Qué es una conciliación?',
+          text: 'Compara los pagos aprobados de un método y período con sus transacciones. SIGMA señala cuáles coinciden, cuáles presentan diferencias y permite cerrar la revisión.',
+        };
+  return (
+    <aside className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-950">
+      <p className="font-bold">{content.title}</p>
+      <p className="mt-1 text-blue-900">{content.text}</p>
+    </aside>
   );
 }
 
@@ -467,18 +707,22 @@ function DataTable({
   mode,
   items,
   canManage,
+  isStudent,
   onAction,
+  onDownload,
   onReview,
 }: {
   mode: OperationsMode;
   items: Item[];
   canManage: boolean;
+  isStudent: boolean;
   onAction: (kind: RowAction, item: Item) => void;
+  onDownload: (path: string, name: string) => void;
   onReview: (item: Item, decision: 'VALIDADO' | 'RECHAZADO') => void;
 }) {
   const columns = columnsFor(mode);
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
           <tr>
@@ -500,7 +744,7 @@ function DataTable({
               ))}
               <td className="px-5 py-3">
                 <div className="flex justify-end gap-2">
-                  {rowActions(mode, item, canManage).map((rowAction) => (
+                  {rowActions(mode, item, canManage, isStudent).map((rowAction) => (
                     <Button
                       key={rowAction.kind}
                       size="sm"
@@ -533,22 +777,44 @@ function DataTable({
                     </>
                   )}
                   {mode === 'pagos' && Boolean(item.proof) && (
-                    <a
-                      className="inline-flex h-9 items-center gap-2 rounded-md border px-3 font-semibold"
-                      href={`/api/payments/${item.id}/proof`}
-                      target="_blank"
-                      rel="noreferrer"
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        onDownload(`/payments/${item.id}/proof`, `comprobante-${item.id}`)
+                      }
                     >
                       <Download className="size-4" /> Comprobante
-                    </a>
+                    </Button>
                   )}
                   {mode === 'facturas' && (
-                    <a
-                      className="inline-flex h-9 items-center gap-2 rounded-md bg-blue-700 px-3 font-semibold text-white"
-                      href={`/api/payments/invoices/${item.id}/pdf`}
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() =>
+                        onDownload(`/payments/invoices/${item.id}/pdf`, `factura-${item.id}.pdf`)
+                      }
                     >
                       <Download className="size-4" /> PDF
-                    </a>
+                    </Button>
+                  )}
+                  {mode === 'documentos' && item.downloadAvailable !== false && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      onClick={() =>
+                        onDownload(
+                          isStudent
+                            ? `/student-portal/documents/${item.id}/file`
+                            : `/enrollments/documents/${item.id}/file`,
+                          String(item.name ?? `documento-${item.id}`),
+                        )
+                      }
+                    >
+                      <Download className="size-4" /> Descargar
+                    </Button>
                   )}
                 </div>
               </td>
@@ -565,9 +831,11 @@ function buildEditor(
   item: Item | null,
   catalogs: {
     canManage?: boolean;
+    isStudent?: boolean;
     ucotesis?: DataSet;
     enrollments?: DataSet;
     projects?: DataSet;
+    payments?: DataSet;
     records?: Item[];
   },
 ): Editor | null {
@@ -583,7 +851,18 @@ function buildEditor(
         `/ucotesis/catalogs/${CATALOG_KIND[mode as keyof typeof CATALOG_KIND]}${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
-        { key: 'codigo', label: 'Código', required: true },
+        {
+          key: 'codigo',
+          label: mode === 'areas-investigacion' ? 'Código automático' : 'Código',
+          required: true,
+          readOnly: mode === 'areas-investigacion',
+          format: mode === 'areas-investigacion' ? undefined : 'technical-code',
+          helpText:
+            mode === 'areas-investigacion'
+              ? undefined
+              : 'Se convierte automáticamente a mayúsculas; los espacios se reemplazan por guiones bajos.',
+          maxLength: 60,
+        },
         { key: 'nombre', label: 'Nombre', required: true },
         { key: 'descripcion', label: 'Descripción', type: 'textarea' },
         ...(item
@@ -617,7 +896,7 @@ function buildEditor(
       endpoint: (value) => `/ucotesis/periods${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
-        { key: 'codigo', label: 'Código', required: true },
+        { key: 'codigo', label: 'Código automático', required: true, readOnly: true },
         { key: 'nombre', label: 'Nombre', required: true },
         { key: 'fechaInicio', label: 'Fecha inicial', type: 'date', required: true },
         { key: 'fechaFin', label: 'Fecha final', type: 'date', required: true },
@@ -637,7 +916,7 @@ function buildEditor(
       endpoint: (value) => `/ucotesis/offers${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
-        { key: 'codigo', label: 'Código', required: true },
+        { key: 'codigo', label: 'Código automático', required: true, readOnly: true },
         { key: 'titulo', label: 'Título', required: true },
         {
           key: 'recintoCarreraId',
@@ -647,8 +926,19 @@ function buildEditor(
           options: select(catalogs.ucotesis?.campusCareers, (x) => `${x.campus} · ${x.career}`),
         },
         {
+          key: 'teachingMode',
+          label: 'Modalidad de enseñanza',
+          type: 'select',
+          required: true,
+          options: [
+            { value: 'PRESENCIAL', label: 'Presencial' },
+            { value: 'VIRTUAL', label: 'Virtual' },
+            { value: 'SEMIPRESENCIAL', label: 'Semipresencial' },
+          ],
+        },
+        {
           key: 'modalidadId',
-          label: 'Modalidad',
+          label: 'Tipo de trabajo de grado',
           type: 'select',
           required: true,
           options: select(catalogs.ucotesis?.modalities, (x) => String(x.name)),
@@ -866,16 +1156,60 @@ function buildEditor(
       endpoint: () => '/payments/reconciliations',
       method: 'POST',
       fields: [
-        { key: 'provider', label: 'Banco o proveedor', required: true },
+        {
+          key: 'provider',
+          label: 'Método o proveedor',
+          type: 'select',
+          required: true,
+          options: select(catalogs.payments?.methods, (x) => `${x.name} · ${x.code}`),
+        },
         { key: 'from', label: 'Desde', type: 'datetime-local', required: true },
         { key: 'to', label: 'Hasta', type: 'datetime-local', required: true },
       ],
     };
-  if (mode === 'proyectos-grado')
+  if (mode === 'proyectos-grado') {
+    if (!item && !catalogs.isStudent) return null;
+    if (item && catalogs.canManage)
+      return {
+        title: 'Revisar proyecto de grado',
+        description:
+          'El contenido enviado por el estudiante es de solo lectura. Aprueba, rechaza o actualiza el estado del proceso.',
+        submitLabel: 'Guardar revisión',
+        endpoint: (value) => `/projects/${value?.id}`,
+        method: 'PATCH',
+        fields: [
+          {
+            key: 'status',
+            label: 'Decisión o estado',
+            type: 'select',
+            required: true,
+            options: enumOptions([
+              'EN_REVISION',
+              'APROBADO',
+              'RECHAZADO',
+              'EN_DESARROLLO',
+              'FINALIZADO',
+              'CANCELADO',
+            ]),
+          },
+          {
+            key: 'reviewObservation',
+            label: 'Ajustes solicitados al estudiante',
+            type: 'textarea',
+            required: true,
+            visibleWhen: { field: 'status', value: 'RECHAZADO' },
+          },
+          { key: 'startDate', label: 'Fecha de inicio', type: 'date' },
+          { key: 'endDate', label: 'Fecha de finalización', type: 'date' },
+        ],
+      };
+    if (item && !catalogs.isStudent) return null;
     return {
-      title: item ? 'Editar proyecto de grado' : 'Registrar proyecto de grado',
-      description: 'Solo se muestran inscripciones confirmadas que todavía no tienen proyecto.',
-      submitLabel: item ? 'Guardar cambios' : 'Crear proyecto',
+      title: item ? 'Ajustar proyecto de grado' : 'Registrar proyecto de grado',
+      description: item
+        ? 'Corrige la propuesta rechazada y vuelve a enviarla a revisión.'
+        : 'Registra tu propuesta; coordinación la revisará antes de aprobarla.',
+      submitLabel: item ? 'Enviar ajustes' : 'Enviar a revisión',
       endpoint: (value) => `/projects${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
       fields: [
@@ -894,36 +1228,33 @@ function buildEditor(
           key: 'areaId',
           label: 'Área de investigación',
           type: 'select',
-          options: select(catalogs.projects?.areas, (x) => String(x.name)),
+          required: true,
+          options: [
+            ...select(catalogs.projects?.areas, (x) => String(x.name)),
+            { value: '__OTHER__', label: 'Otro: proponer un tema o área propia' },
+          ],
+        },
+        {
+          key: 'customArea',
+          label: 'Tema o área propuesta',
+          required: true,
+          visibleWhen: { field: 'areaId', value: '__OTHER__' },
         },
         { key: 'title', label: 'Título', required: true },
-        { key: 'description', label: 'Descripción', type: 'textarea' },
+        { key: 'description', label: 'Descripción', type: 'textarea', required: true },
         ...(item
           ? [
               {
-                key: 'status',
-                label: 'Estado',
-                type: 'select' as const,
-                options: enumOptions(
-                  catalogs.canManage
-                    ? [
-                        'PENDIENTE',
-                        'EN_DESARROLLO',
-                        'EN_REVISION',
-                        'APROBADO',
-                        'RECHAZADO',
-                        'FINALIZADO',
-                        'CANCELADO',
-                      ]
-                    : ['EN_DESARROLLO', 'EN_REVISION'],
-                ),
+                key: 'reviewObservation',
+                label: 'Ajustes indicados por coordinación',
+                type: 'textarea' as const,
+                readOnly: true,
               },
-              { key: 'startDate', label: 'Fecha de inicio', type: 'date' as const },
-              { key: 'endDate', label: 'Fecha de finalización', type: 'date' as const },
             ]
           : []),
       ],
     };
+  }
   if (mode === 'asesores-jurados')
     return {
       title: 'Asignar asesor o jurado',
@@ -944,7 +1275,11 @@ function buildEditor(
           label: 'Docente',
           type: 'select',
           required: true,
-          options: select(catalogs.projects?.teachers, (x) => `${x.code} · ${x.name}`),
+          options: select(
+            catalogs.projects?.teachers,
+            (x) =>
+              `${x.code} · ${x.name}${Array.isArray(x.roles) ? ` · ${(x.roles as string[]).map(humanizeSystemValue).join(', ')}` : ''}`,
+          ),
         },
         {
           key: 'participationTypeId',
@@ -1036,24 +1371,48 @@ function EditorField({
       ) : field.type === 'textarea' ? (
         <textarea
           required={field.required}
+          readOnly={field.readOnly}
           value={String(value)}
           onChange={(event) => onChange(event.target.value)}
           rows={4}
-          className="w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+          className={`w-full rounded-xl border bg-white px-3 py-2 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 ${field.readOnly ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`}
         />
       ) : (
         <input
           required={field.required}
+          readOnly={field.readOnly}
           type={field.type ?? 'text'}
           step={field.type === 'number' ? '0.01' : undefined}
+          maxLength={field.maxLength}
+          pattern={field.format === 'technical-code' ? '[A-Z0-9_-]{2,60}' : undefined}
+          title={
+            field.format === 'technical-code'
+              ? 'Usa entre 2 y 60 letras, números, guiones o guiones bajos.'
+              : undefined
+          }
           value={String(value)}
-          onChange={(event) => onChange(event.target.value)}
-          className={common}
+          onChange={(event) =>
+            onChange(
+              field.format === 'technical-code'
+                ? normalizeTechnicalCode(event.target.value)
+                : event.target.value,
+            )
+          }
+          className={`${common} ${field.readOnly ? 'cursor-not-allowed bg-slate-100 text-slate-600' : ''}`}
         />
+      )}
+      {field.readOnly && (
+        <span className="mt-1 block text-xs text-slate-500">
+          SIGMA reserva este código automáticamente al guardar.
+        </span>
+      )}
+      {!field.readOnly && field.helpText && (
+        <span className="mt-1 block text-xs text-slate-500">{field.helpText}</span>
       )}
     </label>
   );
 }
+
 function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }> {
   const map: Partial<Record<OperationsMode, Array<{ key: string; label: string }>>> = {
     modalidades: cols(['code:Código', 'name:Nombre', 'description:Descripción', 'status:Estado']),
@@ -1075,7 +1434,8 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'code:Código',
       'title:Oferta',
       'campusCareer:Recinto / carrera',
-      'modality:Modalidad',
+      'modality:Tipo de trabajo',
+      'teachingMode:Modalidad',
       'available:Cupos',
       'amount:Monto',
       'status:Estado',
@@ -1084,6 +1444,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'code:Código',
       'participants:Sustentantes',
       'offer:Oferta',
+      'offer.teachingMode:Modalidad',
       'amount:Monto',
       'status:Estado',
     ]),
@@ -1114,6 +1475,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'offer:Oferta',
       'type:Tipo',
       'name:Archivo',
+      'observation:Observación',
       'status:Estado',
     ]),
     'cuentas-bancarias': cols([
@@ -1129,6 +1491,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'reference:Referencia',
       'student:Estudiante',
       'enrollment:Código inscripción',
+      'enrollment.teachingMode:Modalidad',
       'amount:Monto',
       'method:Método',
       'proof:Comprobante',
@@ -1163,6 +1526,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'title:Proyecto',
       'students:Estudiantes',
       'enrollment:Inscripción',
+      'enrollment.teachingMode:Modalidad',
       'area:Área',
       'teachers:Docentes',
       'status:Estado',
@@ -1199,8 +1563,14 @@ function cols(values: string[]) {
     return { key, label };
   });
 }
-function readPath(item: Item, key: string) {
+export function readPath(item: Item, key: string): unknown {
+  if (key.includes('.')) {
+    const [parent, ...rest] = key.split('.');
+    const nested = item[parent];
+    return readPath(nested && typeof nested === 'object' ? (nested as Item) : {}, rest.join('.'));
+  }
   const value = item[key];
+  if (key === 'teachingMode' && !value) return 'Modalidad por definir';
   if (key === 'campusCareer' && value && typeof value === 'object')
     return `${(value as Item).campus} · ${(value as Item).career}`;
   if (key === 'offer' && value && typeof value === 'object')
@@ -1210,6 +1580,12 @@ function readPath(item: Item, key: string) {
   if (key === 'student' && value && typeof value === 'object')
     return `${(value as Item).registration ?? ''} · ${(value as Item).name ?? ''}`;
   if (key === 'area' && value && typeof value === 'object') return (value as Item).name;
+  if ((key === 'modality' || key === 'period') && value && typeof value === 'object')
+    return (value as Item).name;
+  if (key === 'proof' && value && typeof value === 'object') {
+    const proof = value as Item;
+    return `${humanizeSystemValue(String(proof.status ?? 'PENDIENTE'))} · ${String(proof.name ?? 'Comprobante')}`;
+  }
   if (Array.isArray(value))
     return value
       .map((x) =>
@@ -1234,12 +1610,19 @@ function renderValue(value: unknown) {
     return new Intl.DateTimeFormat('es-DO', { dateStyle: 'medium', timeStyle: 'short' }).format(
       new Date(value),
     );
-  if (typeof value === 'object')
-    return <span className="line-clamp-2">{JSON.stringify(value)}</span>;
-  return <span className="line-clamp-2">{String(value)}</span>;
+  if (typeof value === 'object') {
+    const record = value as Item;
+    const label = record.name ?? record.title ?? record.code ?? record.reference;
+    return (
+      <span className="line-clamp-2">
+        {label ? humanizeSystemValue(String(label)) : 'Consultar detalle'}
+      </span>
+    );
+  }
+  return <span className="line-clamp-2">{humanizeSystemValue(String(value))}</span>;
 }
 function enumOptions(values: string[]): Option[] {
-  return values.map((value) => ({ value, label: value.replaceAll('_', ' ') }));
+  return values.map((value) => ({ value, label: humanizeSystemValue(value) }));
 }
 
 function booleanOptions(): Option[] {
@@ -1278,19 +1661,24 @@ function canManageMode(mode: OperationsMode, roles: string[], permissions: strin
 }
 
 function canCreateMode(mode: OperationsMode, canManage: boolean, isStudent: boolean) {
-  return canManage || (mode === 'proyectos-grado' && isStudent);
+  if (mode === 'proyectos-grado') return isStudent;
+  return canManage;
 }
 
 function rowActions(
   mode: OperationsMode,
   item: Item,
   canManage: boolean,
+  isStudent: boolean,
 ): Array<{ kind: RowAction; label: string }> {
   const actions: Array<{ kind: RowAction; label: string }> = [{ kind: 'view', label: 'Ver' }];
   if (canManage && mode === 'inscripciones')
     actions.push({ kind: 'status', label: 'Cambiar estado' });
   if (
-    (canManage || mode === 'proyectos-grado') &&
+    (canManage ||
+      (mode === 'proyectos-grado' &&
+        isStudent &&
+        ['PENDIENTE', 'RECHAZADO'].includes(String(item.status)))) &&
     [
       'modalidades',
       'periodos',
@@ -1416,6 +1804,7 @@ function formFromItem(mode: OperationsMode, item: Item): Record<string, string |
       descripcion: text(item.description),
       recintoCarreraId: text(campusCareer?.id),
       modalidadId: text(modality?.id),
+      teachingMode: text(item.teachingMode),
       periodoId: text(period?.id),
       fechaInicioInscripcion: dateTimeInput(item.registrationStart),
       fechaFinInscripcion: dateTimeInput(item.registrationEnd),
@@ -1452,7 +1841,9 @@ function formFromItem(mode: OperationsMode, item: Item): Record<string, string |
     return {
       title: text(item.title),
       description: text(item.description),
-      areaId: text((item.area as Item | undefined)?.id),
+      areaId: item.customArea ? '__OTHER__' : text((item.area as Item | undefined)?.id),
+      customArea: text(item.customArea),
+      reviewObservation: text(item.reviewObservation),
       status: text(item.status),
       startDate: dateInput(item.startDate),
       endDate: dateInput(item.endDate),
@@ -1482,16 +1873,10 @@ function DetailView({ item }: { item: Item }) {
       {Object.entries(item).map(([key, value]) => (
         <div key={key} className="rounded-xl border bg-slate-50 p-3">
           <dt className="text-xs font-bold tracking-wide text-slate-500 uppercase">
-            {key.replaceAll(/([A-Z])/g, ' $1').replaceAll('_', ' ')}
+            {detailLabel(key)}
           </dt>
           <dd className="mt-1 text-sm break-words text-slate-900">
-            {typeof value === 'object' && value !== null ? (
-              <pre className="overflow-auto whitespace-pre-wrap">
-                {JSON.stringify(value, null, 2)}
-              </pre>
-            ) : (
-              renderValue(value)
-            )}
+            <DetailValue value={value} fieldKey={key} currency={String(item.currency ?? 'DOP')} />
           </dd>
         </div>
       ))}
@@ -1499,14 +1884,131 @@ function DetailView({ item }: { item: Item }) {
   );
 }
 
+function DetailValue({
+  value,
+  fieldKey,
+  currency = 'DOP',
+}: {
+  value: unknown;
+  fieldKey?: string;
+  currency?: string;
+}) {
+  if (fieldKey === 'amount' && typeof value === 'number')
+    return new Intl.NumberFormat('es-DO', { style: 'currency', currency }).format(value);
+  if (fieldKey === 'pdfUrl')
+    return value ? (
+      <span className="font-semibold text-emerald-700">Disponible</span>
+    ) : (
+      renderValue(value)
+    );
+  if (fieldKey === 'mimeType' && typeof value === 'string')
+    return value === 'application/pdf'
+      ? 'Documento PDF'
+      : value.startsWith('image/')
+        ? 'Imagen'
+        : value;
+  if ((fieldKey === 'status' || fieldKey === 'accountType') && typeof value === 'string')
+    return humanizeSystemValue(value);
+  if (Array.isArray(value)) {
+    if (!value.length) return <span className="text-slate-400">Sin registros</span>;
+    return (
+      <div className="space-y-2">
+        {value.map((entry, index) => (
+          <div key={index} className="rounded-lg border bg-white p-2.5">
+            <DetailValue value={entry} currency={currency} />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const nestedCurrency = String((value as Item).currency ?? currency);
+    return (
+      <dl className="space-y-2">
+        {Object.entries(value as Item).map(([key, nestedValue]) => (
+          <div key={key} className="grid gap-0.5 sm:grid-cols-[9rem_minmax(0,1fr)] sm:gap-2">
+            <dt className="font-semibold text-slate-500">{detailLabel(key)}</dt>
+            <dd className="min-w-0 break-words text-slate-900">
+              <DetailValue value={nestedValue} fieldKey={key} currency={nestedCurrency} />
+            </dd>
+          </div>
+        ))}
+      </dl>
+    );
+  }
+  return renderValue(value);
+}
+
+const DETAIL_LABELS: Record<string, string> = {
+  id: 'Identificador',
+  code: 'Código',
+  reference: 'Referencia',
+  status: 'Estado',
+  statusName: 'Nombre del estado',
+  amount: 'Monto',
+  currency: 'Moneda',
+  paidAt: 'Fecha del pago',
+  createdAt: 'Fecha de registro',
+  updatedAt: 'Última actualización',
+  enrollment: 'Inscripción',
+  enrollmentId: 'Inscripción',
+  offer: 'Oferta',
+  student: 'Estudiante',
+  registration: 'Matrícula',
+  name: 'Nombre',
+  method: 'Método de pago',
+  account: 'Cuenta bancaria',
+  bank: 'Banco',
+  accountNumber: 'Número de cuenta',
+  accountType: 'Tipo de cuenta',
+  documentType: 'Tipo de documento',
+  holderDocument: 'Documento del titular',
+  holderName: 'Titular',
+  instructions: 'Instrucciones',
+  proof: 'Comprobante',
+  mimeType: 'Tipo de archivo',
+  observation: 'Observación',
+  uploadedAt: 'Fecha de carga',
+  invoice: 'Factura',
+  number: 'Número',
+  receipt: 'Recibo',
+  pdfUrl: 'Documento PDF',
+  title: 'Título',
+  description: 'Descripción',
+  customArea: 'Área propuesta',
+  reviewObservation: 'Ajustes solicitados',
+  campus: 'Recinto',
+  career: 'Carrera',
+  modality: 'Tipo de trabajo',
+  teachingMode: 'Modalidad de enseñanza',
+  period: 'Período',
+};
+
+function detailLabel(key: string) {
+  return (
+    DETAIL_LABELS[key] ??
+    key
+      .replaceAll(/([A-Z])/g, ' $1')
+      .replaceAll('_', ' ')
+      .trim()
+      .replace(/^./, (character) => character.toUpperCase())
+  );
+}
+
 function dateInput(value: unknown) {
   return value ? new Date(String(value)).toISOString().slice(0, 10) : '';
 }
 function dateTimeInput(value: unknown) {
-  return value ? new Date(String(value)).toISOString().slice(0, 16) : '';
+  if (!value) return '';
+  const date = new Date(String(value));
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return localDate.toISOString().slice(0, 16);
 }
-function defaultForm(mode: OperationsMode): Record<string, string> {
+function defaultForm(mode: OperationsMode, nextCode?: string): Record<string, string> {
   return {
+    ...(['periodos', 'areas-investigacion', 'ofertas'].includes(mode) && {
+      codigo: nextCode ?? 'Se asignará al guardar',
+    }),
     ...(mode === 'cuentas-bancarias' && {
       currency: 'DOP',
       accountType: 'AHORRO',
@@ -1549,7 +2051,12 @@ function resolveEditorEndpoint(
 
 function editorPayload(mode: OperationsMode, payload: Record<string, unknown>) {
   const result = { ...payload };
+  if (['periodos', 'areas-investigacion', 'ofertas'].includes(mode)) delete result.codigo;
   if (mode === 'sustentantes' || mode === 'validaciones') delete result.enrollmentId;
   if (mode === 'asesores-jurados') delete result.projectId;
+  if (mode === 'proyectos-grado') {
+    if (result.areaId === '__OTHER__') delete result.areaId;
+    else delete result.customArea;
+  }
   return result;
 }

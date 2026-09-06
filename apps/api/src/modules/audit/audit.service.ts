@@ -2,11 +2,14 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { sanitizeAuditData } from './audit-data';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { Prisma } from '../../generated/prisma/client';
 import {
+  AuditQueryDto,
   CreateConfigurationDto,
   UpdateConfigurationDto,
 } from './dto/audit.dto';
@@ -23,6 +26,7 @@ export interface AuditRecord {
 }
 @Injectable()
 export class AuditService {
+  private readonly logger = new Logger(AuditService.name);
   constructor(private readonly prisma: PrismaService) {}
   async record(input: AuditRecord) {
     try {
@@ -32,30 +36,37 @@ export class AuditService {
           accion: input.action.slice(0, 100),
           entidad: input.entity.slice(0, 100),
           entidad_id: input.entityId?.slice(0, 100) || null,
-          datos_nuevos: toJsonValue(input.data),
+          datos_nuevos: toJsonValue(sanitizeAuditData(input.data)),
           ip: input.ip?.slice(0, 45) || null,
           user_agent: input.userAgent?.slice(0, 500) || null,
           request_id: input.requestId?.slice(0, 100) || null,
         },
       });
     } catch {
-      /* La auditoría nunca debe romper la operación principal. */
+      this.logger.error('No fue posible persistir el evento de auditoría.');
     }
   }
-  async list(filters: {
-    search?: string;
-    action?: string;
-    entity?: string;
-    page?: string;
-    pageSize?: string;
-  }) {
+  async list(filters: AuditQueryDto) {
     const page = Math.max(Number(filters.page) || 1, 1);
     const pageSize = Math.min(
       Math.max(Number(filters.pageSize) || 20, 10),
       100,
     );
     const search = filters.search?.trim();
+    if (filters.from && filters.to && filters.from > filters.to)
+      throw new BadRequestException(
+        'La fecha inicial no puede ser posterior a la fecha final.',
+      );
+    const from = filters.from
+      ? new Date(`${filters.from}T00:00:00-04:00`)
+      : undefined;
+    const to = filters.to
+      ? new Date(new Date(`${filters.to}T00:00:00-04:00`).getTime() + 86400000)
+      : undefined;
     const where = {
+      ...((from || to) && {
+        created_at: { ...(from && { gte: from }), ...(to && { lt: to }) },
+      }),
       ...(filters.action && { accion: filters.action }),
       ...(filters.entity && { entidad: filters.entity }),
       ...(search && {
@@ -63,12 +74,15 @@ export class AuditService {
           { accion: { contains: search } },
           { entidad: { contains: search } },
           { entidad_id: { contains: search } },
+          { ip: { contains: search } },
+          { request_id: { contains: search } },
           {
             usuarios: {
               OR: [
                 { nombres: { contains: search } },
                 { apellidos: { contains: search } },
                 { codigo_empleado: { contains: search } },
+                { matricula: { contains: search } },
               ],
             },
           },
@@ -80,10 +94,15 @@ export class AuditService {
         where,
         include: {
           usuarios: {
-            select: { nombres: true, apellidos: true, codigo_empleado: true },
+            select: {
+              nombres: true,
+              apellidos: true,
+              codigo_empleado: true,
+              matricula: true,
+            },
           },
         },
-        orderBy: { created_at: 'desc' },
+        orderBy: [{ created_at: 'desc' }, { id_auditoria: 'desc' }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -105,13 +124,16 @@ export class AuditService {
         action: x.accion,
         entity: x.entidad,
         entityId: x.entidad_id,
-        data: x.datos_nuevos,
-        ip: x.ip,
+        data: sanitizeAuditData(x.datos_nuevos),
+        previousData: sanitizeAuditData(x.datos_anteriores),
+        userAgent: x.user_agent,
+        ip: x.ip?.replace(/^::ffff:/, '') ?? null,
         requestId: x.request_id,
         createdAt: x.created_at,
         user: x.usuarios
           ? {
               employeeCode: x.usuarios.codigo_empleado,
+              registration: x.usuarios.matricula,
               name: `${x.usuarios.nombres} ${x.usuarios.apellidos}`,
             }
           : null,

@@ -198,6 +198,11 @@ export class PaymentsService {
     const user = parseId(userId);
     const enrollmentId = parseId(dto.enrollmentId);
     const accountId = parseId(dto.bankAccountId);
+    const paidAt = new Date(dto.paidAt);
+    if (paidAt.getTime() > Date.now() + 5 * 60 * 1000)
+      throw new BadRequestException(
+        'La fecha de la transferencia no puede estar en el futuro.',
+      );
     const [enrollment, account, method, processingState] = await Promise.all([
       this.prisma.inscripciones.findFirst({
         where: {
@@ -209,7 +214,16 @@ export class PaymentsService {
             codigo: { in: ['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGO_PROCESANDO'] },
           },
         },
-        include: { estados_inscripcion: true },
+        include: {
+          estados_inscripcion: true,
+          pagos: {
+            where: {
+              estado: { in: ['PENDIENTE', 'PROCESANDO', 'APROBADO'] },
+            },
+            select: { id_pago: true, estado: true },
+            take: 1,
+          },
+        },
       }),
       this.prisma.cuentas_bancarias.findFirst({
         where: { id_cuenta_bancaria: accountId, estado: 'ACTIVO' },
@@ -236,6 +250,10 @@ export class PaymentsService {
       throw new ConflictException(
         'El estado PAGO_PROCESANDO no está configurado.',
       );
+    if (enrollment.pagos.length)
+      throw new ConflictException(
+        'La inscripción ya tiene un pago pendiente o aprobado.',
+      );
     const digest = createHash('sha256').update(file.buffer).digest('hex');
     try {
       const payment = await this.prisma.$transaction(async (db) => {
@@ -249,7 +267,7 @@ export class PaymentsService {
             monto: enrollment.monto_aplicado,
             moneda: enrollment.moneda,
             estado: 'PENDIENTE',
-            fecha_pago: new Date(dto.paidAt),
+            fecha_pago: paidAt,
             comprobantes_transferencia: {
               create: {
                 nombre_archivo: file.originalname.slice(0, 255),
@@ -258,6 +276,21 @@ export class PaymentsService {
                 hash_sha256: digest,
                 contenido: Uint8Array.from(file.buffer),
               },
+            },
+          },
+        });
+        await db.transacciones_pago.create({
+          data: {
+            id_pago: row.id_pago,
+            proveedor: method.codigo,
+            proveedor_transaccion_id: dto.reference.trim().toUpperCase(),
+            tipo: 'VENTA',
+            estado: 'PENDIENTE',
+            request_reference: row.referencia,
+            request_payload: {
+              bankAccountId: accountId.toString(),
+              paidAt: paidAt.toISOString(),
+              proofName: file.originalname.slice(0, 255),
             },
           },
         });
@@ -307,8 +340,12 @@ export class PaymentsService {
     );
     if (dto.decision === 'RECHAZADO') {
       const pendingState = await this.prisma.estados_inscripcion.findFirst({
-        where: { codigo: 'PENDIENTE_PAGO' },
+        where: { codigo: 'PENDIENTE_PAGO', estado: 'ACTIVO' },
       });
+      if (!pendingState)
+        throw new ConflictException(
+          'El estado PENDIENTE_PAGO no está configurado.',
+        );
       await this.prisma.$transaction(async (db) => {
         await db.pagos.update({
           where: { id_pago: paymentId },
@@ -323,24 +360,31 @@ export class PaymentsService {
             revisado_at: new Date(),
           },
         });
-        if (pendingState) {
-          await db.inscripciones.update({
-            where: { id_inscripcion: payment.id_inscripcion },
-            data: {
-              id_estado: pendingState.id_estado,
-              version_lock: { increment: 1 },
-            },
-          });
-          await db.historial_estados_inscripcion.create({
-            data: {
-              id_inscripcion: payment.id_inscripcion,
-              id_estado_anterior: payment.inscripciones.id_estado,
-              id_estado_nuevo: pendingState.id_estado,
-              cambiado_por: reviewer,
-              motivo: dto.observation?.trim() || 'Pago rechazado.',
-            },
-          });
-        }
+        await db.transacciones_pago.updateMany({
+          where: { id_pago: paymentId, estado: 'PENDIENTE' },
+          data: {
+            estado: 'RECHAZADA',
+            response_code: 'RECHAZADO_REVISION',
+            response_message:
+              dto.observation?.trim() || 'Comprobante rechazado.',
+          },
+        });
+        await db.inscripciones.update({
+          where: { id_inscripcion: payment.id_inscripcion },
+          data: {
+            id_estado: pendingState.id_estado,
+            version_lock: { increment: 1 },
+          },
+        });
+        await db.historial_estados_inscripcion.create({
+          data: {
+            id_inscripcion: payment.id_inscripcion,
+            id_estado_anterior: payment.inscripciones.id_estado,
+            id_estado_nuevo: pendingState.id_estado,
+            cambiado_por: reviewer,
+            motivo: dto.observation?.trim() || 'Pago rechazado.',
+          },
+        });
       });
       await this.notifications.create({
         userIds,
@@ -374,6 +418,15 @@ export class PaymentsService {
           observacion: dto.observation?.trim() || null,
           revisado_por: reviewer,
           revisado_at: issuedAt,
+        },
+      });
+      await db.transacciones_pago.updateMany({
+        where: { id_pago: paymentId, estado: 'PENDIENTE' },
+        data: {
+          estado: 'APROBADA',
+          authorization_code: `SIGMA-${paymentId.toString()}`,
+          response_code: 'VALIDADO',
+          response_message: 'Transferencia validada por Tesorería.',
         },
       });
       const principal =
@@ -593,6 +646,16 @@ export class PaymentsService {
           ? `${x.usuarios.nombres} ${x.usuarios.apellidos}`
           : null,
         differences: x.conciliacion_detalles.filter((d) => !d.coincide).length,
+        details: x.conciliacion_detalles.map((detail) => ({
+          paymentId: detail.id_pago.toString(),
+          reference: detail.pagos.referencia,
+          paymentAmount: Number(detail.pagos.monto),
+          reportedAmount: detail.monto_reportado
+            ? Number(detail.monto_reportado)
+            : null,
+          matches: detail.coincide,
+          observation: detail.observacion,
+        })),
       })),
     };
   }
@@ -603,25 +666,54 @@ export class PaymentsService {
       throw new BadRequestException(
         'La fecha final debe ser posterior a la inicial.',
       );
-    const payments = await this.prisma.pagos.findMany({
-      where: { estado: 'APROBADO', fecha_pago: { gte: from, lte: to } },
+    const provider = dto.provider.trim().toUpperCase();
+    const method = await this.prisma.metodos_pago.findFirst({
+      where: { codigo: provider, estado: 'ACTIVO' },
+      select: { id_metodo_pago: true, codigo: true },
     });
+    if (!method)
+      throw new BadRequestException('Selecciona un método de pago activo.');
+    const payments = await this.prisma.pagos.findMany({
+      where: {
+        id_metodo_pago: method.id_metodo_pago,
+        estado: 'APROBADO',
+        fecha_pago: { gte: from, lte: to },
+      },
+      include: {
+        transacciones_pago: {
+          where: { estado: 'APROBADA' },
+          select: { id_transaccion: true },
+        },
+      },
+    });
+    if (!payments.length)
+      throw new BadRequestException(
+        'No existen pagos aprobados para el método y el período seleccionados.',
+      );
     const total = payments.reduce((sum, x) => sum + Number(x.monto), 0);
+    const differences = payments.filter(
+      (payment) => payment.transacciones_pago.length === 0,
+    ).length;
     const row = await this.prisma.conciliaciones_pago.create({
       data: {
         codigo: `CON-${Date.now()}-${randomUUID().slice(0, 6).toUpperCase()}`,
-        proveedor: dto.provider.trim(),
+        proveedor: method.codigo,
         fecha_desde: from,
         fecha_hasta: to,
         total_registros: payments.length,
         total_monto: total,
-        estado: 'ABIERTA',
+        estado: differences ? 'CON_DIFERENCIAS' : 'PROCESADA',
         procesada_por: parseId(userId),
+        procesada_at: new Date(),
         conciliacion_detalles: {
           create: payments.map((x) => ({
             id_pago: x.id_pago,
             monto_reportado: x.monto,
-            coincide: true,
+            coincide: x.transacciones_pago.length > 0,
+            observacion:
+              x.transacciones_pago.length > 0
+                ? null
+                : 'El pago no tiene una transacción aprobada asociada.',
           })),
         },
       },
@@ -709,6 +801,7 @@ function mapPayment(x: PaymentRecord) {
       code: x.inscripciones.codigo,
       status: x.inscripciones.estados_inscripcion.codigo,
       offer: x.inscripciones.ofertas.titulo,
+      teachingMode: x.inscripciones.ofertas.modalidad_ensenanza,
     },
     student: principal
       ? {

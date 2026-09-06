@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
+import { apiFetch } from '@/lib/api';
 
 interface ImportIssue {
   code: string;
@@ -94,7 +95,7 @@ export function AcademicHistoryImportDialog({
     setLoading(true);
     try {
       const response = await sendFile(
-        `/api/students/careers/${careerId}/history/import/preview`,
+        `/students/careers/${careerId}/history/import/preview`,
         file,
       );
       setPreview((await response.json()) as HistoryPreview);
@@ -110,7 +111,7 @@ export function AcademicHistoryImportDialog({
     setLoading(true);
     try {
       const response = await sendFile(
-        `/api/students/careers/${careerId}/history/import/confirm`,
+        `/students/careers/${careerId}/history/import/confirm`,
         file,
       );
       const result = (await response.json()) as {
@@ -312,9 +313,8 @@ export function AcademicHistoryImportDialog({
 async function sendFile(path: string, file: File): Promise<Response> {
   const formData = new FormData();
   formData.append('file', file);
-  const response = await fetch(path, {
+  const response = await apiFetch(path, {
     method: 'POST',
-    credentials: 'include',
     body: formData,
   });
   if (response.ok) return response;

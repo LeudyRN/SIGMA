@@ -17,6 +17,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import { AuditService } from './audit.service';
 import {
+  AuditQueryDto,
   CreateConfigurationDto,
   UpdateConfigurationDto,
 } from './dto/audit.dto';
@@ -28,14 +29,8 @@ import {
 @Controller('governance')
 export class AuditController {
   constructor(private readonly service: AuditService) {}
-  @Get('audit') audit(
-    @Query('search') search?: string,
-    @Query('action') action?: string,
-    @Query('entity') entity?: string,
-    @Query('page') page?: string,
-    @Query('pageSize') pageSize?: string,
-  ) {
-    return this.service.list({ search, action, entity, page, pageSize });
+  @Get('audit') audit(@Query() query: AuditQueryDto) {
+    return this.service.list(query);
   }
   @Get('configurations') configurations() {
     return this.service.configurations();

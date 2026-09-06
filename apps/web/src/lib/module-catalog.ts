@@ -147,7 +147,7 @@ export const moduleCatalog: ModuleGroup[] = [
       {
         slug: 'modalidades',
         label: 'Modalidades',
-        description: 'Tesis, monográfico y futuras modalidades de grado.',
+        description: 'Presencial, virtual y semipresencial para las ofertas académicas.',
         status: 'available',
       },
       {
@@ -208,7 +208,7 @@ export const moduleCatalog: ModuleGroup[] = [
       {
         slug: 'documentos',
         label: 'Documentos',
-        description: 'Archivos, hashes y validación documental.',
+        description: 'Solicitudes de documentos, envío de archivos y revisión de Coordinación.',
         status: 'available',
       },
     ],
@@ -239,13 +239,14 @@ export const moduleCatalog: ModuleGroup[] = [
       {
         slug: 'transacciones',
         label: 'Transacciones',
-        description: 'Respuestas de proveedores, autorizaciones y reembolsos.',
+        description: 'Historial automático de cada intento de pago y su respuesta de validación.',
         status: 'available',
       },
       {
         slug: 'conciliaciones',
         label: 'Conciliaciones',
-        description: 'Comparación bancaria, diferencias y cierre.',
+        description:
+          'Comparación de pagos aprobados contra transacciones para detectar diferencias y cerrar el período.',
         status: 'available',
       },
       {
@@ -356,6 +357,8 @@ export interface ModuleAccessUser {
 }
 
 export function canAccessModule(slug: string, user: ModuleAccessUser): boolean {
+  if (['configuraciones', 'estados-inscripcion', 'requisitos', 'modalidades'].includes(slug))
+    return false;
   if (user.roles.some((role) => role.code === 'ADMIN')) return true;
   const required = MODULE_PERMISSIONS[slug] ?? [];
   return required.some((permission) => user.permissions.includes(permission));

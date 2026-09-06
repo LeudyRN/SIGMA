@@ -42,7 +42,7 @@ const capabilities = [
 
 const steps = [
   ['01', 'Verifica tu elegibilidad', 'El sistema revisa tus requisitos académicos.'],
-  ['02', 'Selecciona tu modalidad', 'Elige una oferta disponible de tesis o monográfico.'],
+  ['02', 'Selecciona tu oferta', 'Elige una oferta disponible de tesis o monográfico.'],
   [
     '03',
     'Completa tu inscripción',

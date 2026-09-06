@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { TableFilters } from '@/components/ui/table-filters';
+import { apiFetch } from '@/lib/api';
 
 interface Campus {
   id: string;
@@ -96,9 +97,8 @@ export function StudyPlanImportDialog({
 
       formData.append('file', file);
 
-      const response = await fetch('/api/academic/study-plans/import/preview', {
+      const response = await apiFetch('/academic/study-plans/import/preview', {
         method: 'POST',
-        credentials: 'include',
         body: formData,
       });
 
@@ -128,11 +128,8 @@ export function StudyPlanImportDialog({
     setLoading(true);
 
     try {
-      const response = await fetch('/api/academic/study-plans/import/confirm', {
+      const response = await apiFetch('/academic/study-plans/import/confirm', {
         method: 'POST',
-
-        credentials: 'include',
-
         headers: {
           'Content-Type': 'application/json',
         },

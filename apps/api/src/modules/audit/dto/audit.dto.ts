@@ -1,5 +1,10 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 import {
+  IsDateString,
+  IsInt,
+  Min,
+  Max,
   IsBoolean,
   IsEnum,
   IsOptional,
@@ -47,3 +52,29 @@ export class CreateConfigurationDto {
 export class UpdateConfigurationDto extends PartialType(
   CreateConfigurationDto,
 ) {}
+
+export class AuditQueryDto {
+  @IsOptional() @IsString() @MaxLength(200) search?: string;
+  @IsOptional() @IsString() @MaxLength(100) action?: string;
+  @IsOptional() @IsString() @MaxLength(100) entity?: string;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(1000000)
+  page?: number;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(10)
+  @Max(100)
+  pageSize?: number;
+  @IsOptional()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  from?: string;
+  @IsOptional()
+  @IsDateString({ strict: true })
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  to?: string;
+}

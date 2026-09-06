@@ -1,4 +1,12 @@
 const API_URL = '/api';
+const REFRESH_PATH = '/auth/refresh';
+const PATHS_WITHOUT_AUTOMATIC_REFRESH = new Set([
+  '/auth/login',
+  REFRESH_PATH,
+  '/auth/logout',
+]);
+
+let refreshRequest: Promise<boolean> | null = null;
 
 export class ApiError extends Error {
   constructor(
@@ -11,7 +19,7 @@ export class ApiError extends Error {
   }
 }
 
-export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+async function request(path: string, init?: RequestInit): Promise<Response> {
   const isFormData = init?.body instanceof FormData;
   try {
     return await fetch(`${API_URL}${path}`, {
@@ -37,6 +45,33 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
       'NETWORK',
     );
   }
+}
+
+function canRefresh(path: string): boolean {
+  return !PATHS_WITHOUT_AUTOMATIC_REFRESH.has(path.split('?')[0]);
+}
+
+function refreshAccessToken(): Promise<boolean> {
+  if (!refreshRequest) {
+    refreshRequest = request(REFRESH_PATH, { method: 'POST' })
+      .then((response) => response.ok)
+      .finally(() => {
+        refreshRequest = null;
+      });
+  }
+
+  return refreshRequest;
+}
+
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const response = await request(path, init);
+
+  if (response.status !== 401 || !canRefresh(path)) {
+    return response;
+  }
+
+  const refreshed = await refreshAccessToken();
+  return refreshed ? request(path, init) : response;
 }
 
 export async function apiJson<T>(path: string, init?: RequestInit): Promise<T> {

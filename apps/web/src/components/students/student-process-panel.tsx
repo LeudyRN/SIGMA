@@ -1,11 +1,20 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { BadgeDollarSign, BookOpenCheck, FileText, LoaderCircle, MapPin } from 'lucide-react';
+import {
+  BadgeDollarSign,
+  BookOpenCheck,
+  Download,
+  FileText,
+  LoaderCircle,
+  MapPin,
+  RefreshCw,
+} from 'lucide-react';
 import { toast } from 'sonner';
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { apiFetch, readApiError } from '@/lib/api';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 
 type ProcessMode = 'offers' | 'enrollments' | 'payments' | 'invoices';
 interface Offer {
@@ -13,11 +22,16 @@ interface Offer {
   title: string;
   description: string | null;
   modality: string;
+  teachingMode?: string | null;
   period: string;
   campus: string;
   career: string;
+  registrationStart: string;
   registrationEnd: string;
   available: number;
+  availability: 'ABIERTA' | 'PROXIMAMENTE' | 'AGOTADA' | 'SOLICITADA';
+  canEnroll: boolean;
+  existingEnrollment: { id: string; status: string; statusName: string } | null;
   amount: number;
   currency: string;
   areas: string[];
@@ -31,7 +45,13 @@ interface Enrollment {
   requestedAt: string;
   amount: number;
   currency: string;
-  offer: { title: string; modality: string; campus: string; career: string };
+  offer: {
+    title: string;
+    modality: string;
+    teachingMode?: string | null;
+    campus: string;
+    career: string;
+  };
   payments: Array<{
     id: string;
     reference: string;
@@ -118,7 +138,9 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
     invoices: ['Mis facturas', 'Comprobantes digitales vinculados a pagos aprobados.'],
   }[mode];
   const loading =
-    (offers.isPending && mode === 'offers') || (enrollments.isPending && mode !== 'offers');
+    (offers.isPending && mode === 'offers') ||
+    (enrollments.isPending && mode !== 'offers') ||
+    (accounts.isPending && mode === 'payments');
   return (
     <section className="w-full space-y-6">
       <header className="rounded-3xl border bg-white p-6 shadow-sm">
@@ -133,14 +155,22 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
           <LoaderCircle className="mx-auto size-6 animate-spin" />
         </p>
       )}
-      {mode === 'offers' && (
+      {mode === 'offers' && offers.isError && <LoadError onRetry={() => void offers.refetch()} />}
+      {mode !== 'offers' && enrollments.isError && (
+        <LoadError onRetry={() => void enrollments.refetch()} />
+      )}
+      {mode === 'payments' && accounts.isError && (
+        <LoadError onRetry={() => void accounts.refetch()} />
+      )}
+      {mode === 'offers' && !offers.isError && (
         <div className="grid gap-5 lg:grid-cols-2">
           {offers.data?.items.map((offer) => (
             <article key={offer.id} className="rounded-3xl border bg-white p-6 shadow-sm">
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                    {offer.modality}
+                    {offer.modality} ·{' '}
+                    {humanizeSystemValue(offer.teachingMode ?? 'Modalidad por definir')}
                   </span>
                   <h2 className="mt-3 text-xl font-bold">{offer.title}</h2>
                 </div>
@@ -161,6 +191,7 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
                   new Date(offer.registrationEnd),
                 )}
               </p>
+              <OfferAvailability offer={offer} />
               <div className="mt-4 flex flex-wrap gap-2">
                 {offer.areas.map((area) => (
                   <span key={area} className="rounded-full bg-slate-100 px-2 py-1 text-xs">
@@ -172,9 +203,16 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
                 type="button"
                 className="mt-5 w-full"
                 onClick={() => request.mutate(offer.id)}
-                disabled={request.isPending || offer.available === 0}
+                disabled={request.isPending || !offer.canEnroll}
               >
-                <BookOpenCheck className="size-4" /> Solicitar inscripción
+                <BookOpenCheck className="size-4" />{' '}
+                {offer.availability === 'SOLICITADA'
+                  ? 'Solicitud registrada'
+                  : offer.availability === 'PROXIMAMENTE'
+                    ? 'Inscripción aún no abierta'
+                    : offer.availability === 'AGOTADA'
+                      ? 'Sin cupos disponibles'
+                      : 'Solicitar inscripción'}
               </Button>
             </article>
           ))}
@@ -183,8 +221,10 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
           )}
         </div>
       )}
-      {mode === 'enrollments' && <EnrollmentList items={enrollments.data?.items ?? []} />}
-      {mode === 'payments' && (
+      {mode === 'enrollments' && !enrollments.isError && (
+        <EnrollmentList items={enrollments.data?.items ?? []} />
+      )}
+      {mode === 'payments' && !enrollments.isError && !accounts.isError && (
         <div className="space-y-4">
           {(enrollments.data?.items ?? []).map((item) => (
             <PaymentCard
@@ -200,8 +240,36 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
           )}
         </div>
       )}
-      {mode === 'invoices' && <InvoiceList enrollments={enrollments.data?.items ?? []} />}
+      {mode === 'invoices' && !enrollments.isError && (
+        <InvoiceList enrollments={enrollments.data?.items ?? []} />
+      )}
     </section>
+  );
+}
+
+function OfferAvailability({ offer }: { offer: Offer }) {
+  const start = new Intl.DateTimeFormat('es-DO', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(new Date(offer.registrationStart));
+  const messages = {
+    ABIERTA: 'Inscripciones abiertas.',
+    PROXIMAMENTE: `Publicada. Podrás solicitarla desde ${start}.`,
+    AGOTADA: 'La oferta alcanzó el límite de cupos.',
+    SOLICITADA: `Ya tienes una solicitud en estado ${offer.existingEnrollment?.statusName ?? offer.existingEnrollment?.status ?? 'registrada'}.`,
+  };
+  return (
+    <p
+      className={`mt-3 rounded-xl px-3 py-2 text-xs font-semibold ${
+        offer.availability === 'ABIERTA'
+          ? 'bg-emerald-50 text-emerald-800'
+          : offer.availability === 'PROXIMAMENTE'
+            ? 'bg-blue-50 text-blue-800'
+            : 'bg-amber-50 text-amber-800'
+      }`}
+    >
+      {messages[offer.availability]}
+    </p>
   );
 }
 
@@ -215,7 +283,9 @@ function EnrollmentList({ items }: { items: Enrollment[] }) {
               <p className="text-xs font-bold text-blue-700">{item.code}</p>
               <h2 className="mt-1 text-xl font-bold">{item.offer.title}</h2>
               <p className="mt-1 text-sm text-slate-500">
-                {item.offer.modality} · {item.offer.campus} · {item.offer.career}
+                {item.offer.modality} ·{' '}
+                {humanizeSystemValue(item.offer.teachingMode ?? 'Modalidad por definir')} ·{' '}
+                {item.offer.campus} · {item.offer.career}
               </p>
             </div>
             <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800">
@@ -249,6 +319,7 @@ function PaymentCard({
   onPay: (formData: FormData) => void;
 }) {
   const latest = enrollment.payments[0];
+  const payable = ['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGO_PROCESANDO'].includes(enrollment.status);
   const [accountId, setAccountId] = useState('');
   const [reference, setReference] = useState('');
   const [paidAt, setPaidAt] = useState('');
@@ -266,22 +337,26 @@ function PaymentCard({
         <div className="mt-4 rounded-xl bg-slate-50 p-4">
           <p className="text-sm font-semibold">{latest.reference}</p>
           <p className="mt-1 text-xs text-slate-500">
-            {latest.method} · {latest.status}
+            {latest.method} · {humanizeSystemValue(latest.status)}
           </p>
           {latest.proofStatus && (
             <p className="mt-2 text-xs font-bold text-blue-700">
-              Comprobante: {latest.proofStatus}
+              Comprobante: {humanizeSystemValue(latest.proofStatus)}
             </p>
           )}
           {latest.proofObservation && (
             <p className="mt-1 text-xs text-red-700">{latest.proofObservation}</p>
           )}
         </div>
+      ) : !payable ? (
+        <p className="mt-4 rounded-xl bg-slate-50 p-4 text-sm text-slate-600">
+          Esta inscripción se encuentra en estado {enrollment.statusName} y no admite nuevos pagos.
+        </p>
       ) : (
         <div className="mt-4">
           <p className="mb-3 text-sm text-slate-600">
-            Selecciona un método para registrar la intención. SIGMA no simula aprobaciones: el
-            estado final debe llegar del proveedor.
+            Selecciona la cuenta institucional, registra la referencia y adjunta el comprobante.
+            Tesorería revisará la transferencia antes de confirmar la inscripción.
           </p>
           <form
             className="grid gap-3 sm:grid-cols-2"
@@ -297,6 +372,12 @@ function PaymentCard({
               onPay(data);
             }}
           >
+            {!accounts.length && (
+              <p className="rounded-xl bg-amber-50 p-3 text-sm text-amber-800 sm:col-span-2">
+                UCOTESIS todavía no ha configurado una cuenta bancaria activa. No podrás enviar la
+                transferencia hasta que se publique una.
+              </p>
+            )}
             <label className="sm:col-span-2">
               <span className="mb-1 block text-xs font-bold">Cuenta bancaria</span>
               <select
@@ -370,11 +451,32 @@ function BankAccountDetail({ account }: { account?: BankAccount }) {
   );
 }
 function InvoiceList({ enrollments }: { enrollments: Enrollment[] }) {
+  const [downloading, setDownloading] = useState<string | null>(null);
   const invoices = enrollments.flatMap((enrollment) =>
     enrollment.payments
       .filter((payment) => payment.invoice)
       .map((payment) => ({ ...payment.invoice!, payment })),
   );
+  async function downloadInvoice(pdfUrl: string, number: string) {
+    setDownloading(number);
+    try {
+      const path = pdfUrl.startsWith('/api/') ? pdfUrl.slice(4) : pdfUrl;
+      const response = await apiFetch(path);
+      if (!response.ok) throw new Error(await readApiError(response));
+      const objectUrl = URL.createObjectURL(await response.blob());
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `factura-${number}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'No fue posible descargar la factura.');
+    } finally {
+      setDownloading(null);
+    }
+  }
   return (
     <div className="grid gap-4 md:grid-cols-2">
       {invoices.map(({ number, receipt, pdfUrl, payment }) => (
@@ -385,14 +487,20 @@ function InvoiceList({ enrollments }: { enrollments: Enrollment[] }) {
             Recibo {receipt} · {payment.reference}
           </p>
           {pdfUrl ? (
-            <a
-              href={pdfUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="mt-4 inline-flex font-bold text-blue-700"
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              disabled={downloading === number}
+              onClick={() => void downloadInvoice(pdfUrl, number)}
             >
+              {downloading === number ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Download className="size-4" />
+              )}
               Descargar PDF
-            </a>
+            </Button>
           ) : (
             <p className="mt-4 text-sm text-amber-700">PDF pendiente de emisión.</p>
           )}
@@ -401,6 +509,16 @@ function InvoiceList({ enrollments }: { enrollments: Enrollment[] }) {
       {invoices.length === 0 && (
         <Empty text="Las facturas aparecerán después de la aprobación real del pago." />
       )}
+    </div>
+  );
+}
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="rounded-3xl border border-red-200 bg-white p-8 text-center text-sm text-red-700">
+      <p>No fue posible cargar la información del proceso.</p>
+      <Button type="button" variant="outline" className="mt-4" onClick={onRetry}>
+        <RefreshCw className="size-4" /> Reintentar
+      </Button>
     </div>
   );
 }

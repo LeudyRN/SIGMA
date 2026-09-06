@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional, PartialType } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   ArrayUnique,
   IsArray,
@@ -14,7 +15,15 @@ import {
 } from 'class-validator';
 
 export class CreateCatalogDto {
-  @ApiProperty() @IsString() @Matches(/^[A-Z0-9_-]{2,60}$/) codigo!: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: unknown }) => normalizeCatalogCode(value))
+  @Matches(/^[A-Z0-9_-]{2,60}$/, {
+    message:
+      'El código debe contener entre 2 y 60 letras, números, guiones o guiones bajos.',
+  })
+  codigo?: string;
   @ApiProperty() @IsString() @MaxLength(150) nombre!: string;
   @ApiPropertyOptional()
   @IsOptional()
@@ -35,7 +44,11 @@ export class UpdateCatalogDto extends PartialType(CreateCatalogDto) {
 }
 
 export class CreatePeriodDto {
-  @ApiProperty() @IsString() @Matches(/^[A-Z0-9_-]{2,30}$/) codigo!: string;
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,30}$/)
+  codigo?: string;
   @ApiProperty() @IsString() @MaxLength(100) nombre!: string;
   @ApiProperty() @IsDateString() fechaInicio!: string;
   @ApiProperty() @IsDateString() fechaFin!: string;
@@ -50,7 +63,14 @@ export class CreatePeriodDto {
 export class UpdatePeriodDto extends PartialType(CreatePeriodDto) {}
 
 export class CreateOfferDto {
-  @ApiProperty() @IsString() @Matches(/^[A-Z0-9_-]{2,50}$/) codigo!: string;
+  @ApiProperty({ enum: ['PRESENCIAL', 'VIRTUAL', 'SEMIPRESENCIAL'] })
+  @IsEnum(['PRESENCIAL', 'VIRTUAL', 'SEMIPRESENCIAL'])
+  teachingMode!: 'PRESENCIAL' | 'VIRTUAL' | 'SEMIPRESENCIAL';
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @Matches(/^[A-Z0-9_-]{2,50}$/)
+  codigo?: string;
   @ApiProperty() @IsString() @Matches(/^\d+$/) recintoCarreraId!: string;
   @ApiProperty() @IsString() @Matches(/^\d+$/) modalidadId!: string;
   @ApiProperty() @IsString() @Matches(/^\d+$/) periodoId!: string;
@@ -90,3 +110,13 @@ export class CreateOfferDto {
 }
 
 export class UpdateOfferDto extends PartialType(CreateOfferDto) {}
+
+export function normalizeCatalogCode(value: unknown): unknown {
+  if (typeof value !== 'string') return value;
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '_');
+}

@@ -21,6 +21,7 @@ import { Pagination, usePagination } from '@/components/ui/pagination';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
 import { apiFetch, readApiError } from '@/lib/api';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 import { useAuthStore } from '@/store/auth-store';
 import { AcademicHistoryImportDialog } from './academic-history-import-dialog';
 
@@ -462,7 +463,7 @@ function Profiles({
                   <td className="p-4 font-semibold">{student.matricula}</td>
                   <td className="p-4">{student.role?.name ?? 'Sin rol'}</td>
                   <td className="p-4">{student.careers.length}</td>
-                  <td className="p-4">{student.status}</td>
+                  <td className="p-4">{humanizeSystemValue(student.status)}</td>
                   <td className="p-4">
                     <div className="flex gap-3">
                       <button
@@ -768,7 +769,7 @@ function Careers({
                   </div>
                   <div className="flex shrink-0 flex-col items-end gap-2">
                     <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold">
-                      {career.status}
+                      {humanizeSystemValue(career.status)}
                     </span>
                     <button
                       type="button"
@@ -1127,7 +1128,7 @@ function History({
                       </span>
                     )}
                   </td>
-                  <td className="p-4 font-semibold">{item.status}</td>
+                  <td className="p-4 font-semibold">{humanizeSystemValue(item.status)}</td>
                   <td className="p-4">
                     <div className="flex gap-3">
                       <button
@@ -1375,7 +1376,7 @@ function StudentSelfWorkspace({ mode }: { mode: WorkspaceMode }) {
               <ProfileDatum label="Correo" value={student.email} />
               <ProfileDatum label="Teléfono" value={student.phone ?? 'No registrado'} />
               <ProfileDatum label="WhatsApp" value={student.whatsapp ?? 'No registrado'} />
-              <ProfileDatum label="Estado" value={student.status} />
+              <ProfileDatum label="Estado" value={humanizeSystemValue(student.status)} />
             </dl>
           </section>
           <section className="rounded-3xl border bg-white p-6 shadow-sm">
@@ -1400,7 +1401,7 @@ function StudentSelfWorkspace({ mode }: { mode: WorkspaceMode }) {
                 <p className="mt-3 text-sm text-slate-500">Plan: {career.studyPlan}</p>
                 <div className="mt-4 flex gap-2">
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold">
-                    {career.status}
+                    {humanizeSystemValue(career.status)}
                   </span>
                   {career.primary && (
                     <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
@@ -1458,7 +1459,7 @@ function StudentSelfWorkspace({ mode }: { mode: WorkspaceMode }) {
                         </span>
                       )}
                     </td>
-                    <td className="p-4 font-bold">{item.status}</td>
+                    <td className="p-4 font-bold">{humanizeSystemValue(item.status)}</td>
                   </tr>
                 ))}
               </tbody>

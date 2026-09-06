@@ -285,19 +285,24 @@ export class AuthService {
     return tokens;
   }
 
-  async logout(refreshToken?: string): Promise<void> {
-    if (!refreshToken) {
-      return;
-    }
-
-    await this.prisma.sesiones.updateMany({
-      where: {
-        refresh_token_hash: hashToken(refreshToken),
-        revocada_at: null,
-      },
-      data: {
-        revocada_at: new Date(),
-      },
+  async logout(refreshToken?: string): Promise<string | undefined> {
+    if (!refreshToken) return;
+    const tokenHash = hashToken(refreshToken);
+    return this.prisma.$transaction(async (tx) => {
+      const session = await tx.sesiones.findFirst({
+        where: { refresh_token_hash: tokenHash, revocada_at: null },
+        select: { id_sesion: true, id_usuario: true },
+      });
+      if (!session) return;
+      const result = await tx.sesiones.updateMany({
+        where: {
+          id_sesion: session.id_sesion,
+          refresh_token_hash: tokenHash,
+          revocada_at: null,
+        },
+        data: { revocada_at: new Date() },
+      });
+      return result.count ? session.id_usuario.toString() : undefined;
     });
   }
 

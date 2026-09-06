@@ -17,6 +17,7 @@ const USER_INCLUDE = {
 } as const;
 
 const EXCLUDED_USER_ROLE_CODES = ['ADMIN', 'ESTUDIANTE'];
+const ACADEMIC_STAFF_ROLE_CODES = ['DOCENTE', 'ASESOR', 'JURADO'];
 
 @Injectable()
 export class UsersService {
@@ -109,7 +110,9 @@ export class UsersService {
           })),
         });
 
-        if (roles.some((role) => role.codigo === 'DOCENTE')) {
+        if (
+          roles.some((role) => ACADEMIC_STAFF_ROLE_CODES.includes(role.codigo))
+        ) {
           await database.docentes.create({
             data: {
               codigo_docente: employeeCode,
@@ -189,10 +192,12 @@ export class UsersService {
       where: { id_usuario: userId },
       select: { codigo_empleado: true },
     });
-    const isTeacher = selectedRoles.some((role) => role.codigo === 'DOCENTE');
+    const isTeacher = selectedRoles.some((role) =>
+      ACADEMIC_STAFF_ROLE_CODES.includes(role.codigo),
+    );
     if (isTeacher && !userData.codigo_empleado) {
       throw new BadRequestException(
-        'Debes asignar un código de empleado antes de seleccionar el rol Docente.',
+        'Debes asignar un código de empleado antes de seleccionar un rol docente, asesor o jurado.',
       );
     }
 

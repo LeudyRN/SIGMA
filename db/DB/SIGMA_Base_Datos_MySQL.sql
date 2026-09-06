@@ -595,6 +595,7 @@ CREATE TABLE documentos_inscripcion (
     mime_type VARCHAR(120) NULL,
     tamano_bytes BIGINT UNSIGNED NULL,
     hash_sha256 CHAR(64) NULL,
+    contenido LONGBLOB NULL,
     estado_validacion ENUM('PENDIENTE','VALIDO','RECHAZADO') NOT NULL DEFAULT 'PENDIENTE',
     validado_por BIGINT UNSIGNED NULL,
     validado_at DATETIME NULL,
@@ -822,6 +823,8 @@ CREATE TABLE proyectos_grado (
     id_proyecto BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     id_inscripcion BIGINT UNSIGNED NOT NULL,
     id_area BIGINT UNSIGNED NULL,
+    area_personalizada VARCHAR(150) NULL,
+    observacion_revision VARCHAR(1000) NULL,
     titulo VARCHAR(300) NULL,
     descripcion TEXT NULL,
     estado ENUM(
@@ -948,7 +951,9 @@ INSERT INTO roles (codigo, nombre, descripcion) VALUES
 ('COORDINADOR', 'Coordinador UCOTESIS', 'Gestión académica y de ofertas de UCOTESIS'),
 ('TESORERIA', 'Tesorería / Cajero Virtual', 'Supervisión de pagos y conciliaciones'),
 ('ESTUDIANTE', 'Estudiante', 'Consulta, elegibilidad, inscripción y pagos'),
-('DOCENTE', 'Docente', 'Asesoría, jurado y participación académica');
+('DOCENTE', 'Docente', 'Docencia y participación académica'),
+('ASESOR', 'Asesor de proyecto', 'Acompañamiento académico de proyectos de grado'),
+('JURADO', 'Jurado evaluador', 'Evaluación de proyectos de grado');
 
 INSERT INTO permisos (codigo, nombre, descripcion, modulo) VALUES
 ('IDENTIDAD_USUARIOS_LEER', 'Consultar usuarios', 'Permite consultar usuarios y sus roles.', 'IDENTIDAD'),
@@ -1011,6 +1016,15 @@ JOIN permisos p ON p.codigo IN (
 )
 WHERE r.codigo = 'DOCENTE';
 
+INSERT IGNORE INTO rol_permisos (id_rol, id_permiso)
+SELECT r.id_rol, p.id_permiso
+FROM roles r
+JOIN permisos p ON p.codigo IN (
+    'GENERAL_RESUMEN_LEER', 'UCOTESIS_OFERTAS_LEER',
+    'PROYECTOS_PARTICIPAR', 'NOTIFICACIONES_AUTOGESTIONAR'
+)
+WHERE r.codigo IN ('ASESOR', 'JURADO');
+
 INSERT INTO rol_permisos (id_rol, id_permiso)
 SELECT r.id_rol, p.id_permiso
 FROM roles r
@@ -1024,7 +1038,8 @@ WHERE r.codigo = 'ESTUDIANTE';
 
 INSERT INTO modalidades (codigo, nombre, descripcion) VALUES
 ('TESIS', 'Tesis', 'Modalidad de trabajo de grado tipo tesis'),
-('MONOGRAFICO', 'Monográfico', 'Modalidad de trabajo de grado tipo monográfico');
+('MONOGRAFICO', 'Monográfico', 'Modalidad de trabajo de grado tipo monográfico'),
+('TRABAJO_FINAL', 'Trabajo final', 'Trabajo de grado tipo trabajo final');
 
 INSERT INTO estados_inscripcion (codigo, nombre, orden, es_final) VALUES
 ('BORRADOR', 'Borrador', 10, FALSE),
@@ -1294,3 +1309,22 @@ DELIMITER ;
 -- ============================================================
 
 SELECT 'Base de datos sigma_ucotesis creada correctamente.' AS resultado;
+
+-- Modalidad de enseñanza y solicitudes documentales
+ALTER TABLE ofertas ADD COLUMN modalidad_ensenanza ENUM('PRESENCIAL','VIRTUAL','SEMIPRESENCIAL') NULL;
+CREATE TABLE solicitudes_documentos (
+ id_solicitud BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+ id_inscripcion BIGINT UNSIGNED NOT NULL,
+ tipo_documento VARCHAR(80) NOT NULL,
+ instrucciones VARCHAR(500) NOT NULL,
+ solicitado_por BIGINT UNSIGNED NOT NULL,
+ created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ PRIMARY KEY (id_solicitud),
+ UNIQUE KEY uq_sd_tipo (id_inscripcion, tipo_documento),
+ KEY fk_sd_usuario (solicitado_por),
+ CONSTRAINT fk_sd_inscripcion FOREIGN KEY (id_inscripcion) REFERENCES inscripciones(id_inscripcion),
+ CONSTRAINT fk_sd_usuario FOREIGN KEY (solicitado_por) REFERENCES usuarios(id_usuario)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+ALTER TABLE documentos_inscripcion ADD COLUMN id_solicitud BIGINT UNSIGNED NULL,
+ ADD KEY fk_di_solicitud (id_solicitud),
+ ADD CONSTRAINT fk_di_solicitud FOREIGN KEY (id_solicitud) REFERENCES solicitudes_documentos(id_solicitud);

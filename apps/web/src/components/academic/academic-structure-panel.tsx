@@ -21,6 +21,7 @@ import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
 import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
 import { apiFetch, readApiError } from '@/lib/api';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 import { StudyPlanImportDialog } from './study-plan-import-dialog';
 
 export type AcademicMode =
@@ -585,7 +586,7 @@ export function AcademicStructurePanel({ mode }: { mode: AcademicMode }) {
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700">
-                    {item.status}
+                    {humanizeSystemValue(item.status)}
                   </span>
                   <button
                     type="button"

@@ -6,9 +6,11 @@ import {
   Param,
   Patch,
   Post,
+  Res,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import type { Response } from 'express';
 import { ApiCookieAuth, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { Permissions } from '../auth/decorators/permissions.decorator';
@@ -17,6 +19,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import {
   AddParticipantDto,
+  RequestDocumentDto,
   ChangeEnrollmentStatusDto,
   UpsertEnrollmentStateDto,
   ValidateDocumentDto,
@@ -31,6 +34,12 @@ import { EnrollmentsService } from './enrollments.service';
 @Controller('enrollments')
 export class EnrollmentsController {
   constructor(private readonly service: EnrollmentsService) {}
+  @Post('document-requests') requestDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RequestDocumentDto,
+  ) {
+    return this.service.requestDocument(user.id, dto);
+  }
   @Get() list(
     @Query('search') search?: string,
     @Query('status') status?: string,
@@ -76,6 +85,13 @@ export class EnrollmentsController {
     @Body() dto: ValidateDocumentDto,
   ) {
     return this.service.validateDocument(user.id, documentId, dto);
+  }
+  @Get('documents/:documentId/file') downloadDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('documentId') documentId: string,
+    @Res() response: Response,
+  ) {
+    return this.service.downloadDocument(user, documentId, response);
   }
   @Post('states') createState(@Body() dto: UpsertEnrollmentStateDto) {
     return this.service.createState(dto);

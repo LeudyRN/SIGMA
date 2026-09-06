@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import {
   BadRequestException,
   ConflictException,
@@ -73,6 +74,7 @@ export class UcotesisService {
       };
     if (kind === 'areas')
       return {
+        nextCode: await this.nextAreaCode(),
         items: (
           await this.prisma.areas_investigacion.findMany({
             orderBy: { nombre: 'asc' },
@@ -106,28 +108,35 @@ export class UcotesisService {
         return mapCatalog(
           await this.prisma.modalidades.create({
             data: {
-              codigo: dto.codigo.trim().toUpperCase(),
+              codigo: requireManualCode(dto.codigo),
               nombre: dto.nombre.trim(),
               descripcion: clean(dto.descripcion),
             },
           }),
           'id_modalidad',
         );
-      if (kind === 'areas')
-        return mapCatalog(
-          await this.prisma.areas_investigacion.create({
-            data: {
-              codigo: dto.codigo.trim().toUpperCase(),
-              nombre: dto.nombre.trim(),
-              descripcion: clean(dto.descripcion),
-            },
-          }),
-          'id_area',
-        );
+      if (kind === 'areas') {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          try {
+            return mapCatalog(
+              await this.prisma.areas_investigacion.create({
+                data: {
+                  codigo: await this.nextAreaCode(),
+                  nombre: dto.nombre.trim(),
+                  descripcion: clean(dto.descripcion),
+                },
+              }),
+              'id_area',
+            );
+          } catch (error) {
+            if (attempt === 2) throw error;
+          }
+        }
+      }
       return mapCatalog(
         await this.prisma.requisitos.create({
           data: {
-            codigo: dto.codigo.trim().toUpperCase(),
+            codigo: requireManualCode(dto.codigo),
             nombre: dto.nombre.trim(),
             descripcion: clean(dto.descripcion),
             tipo_validacion: dto.tipoValidacion ?? 'MANUAL',
@@ -146,7 +155,10 @@ export class UcotesisService {
     assertKind(kind);
     const parsed = parseId(id);
     const common = {
-      ...(dto.codigo && { codigo: dto.codigo.trim().toUpperCase() }),
+      ...(kind !== 'areas' &&
+        dto.codigo && {
+          codigo: dto.codigo.trim().toUpperCase(),
+        }),
       ...(dto.nombre && { nombre: dto.nombre.trim() }),
       ...(dto.descripcion !== undefined && {
         descripcion: clean(dto.descripcion),
@@ -213,6 +225,7 @@ export class UcotesisService {
 
   async periods() {
     return {
+      nextCode: await this.nextPeriodCode(),
       items: (
         await this.prisma.periodos_academicos.findMany({
           orderBy: { fecha_inicio: 'desc' },
@@ -230,16 +243,22 @@ export class UcotesisService {
   async createPeriod(dto: CreatePeriodDto) {
     validateDates(dto.fechaInicio, dto.fechaFin);
     try {
-      const row = await this.prisma.periodos_academicos.create({
-        data: {
-          codigo: dto.codigo.trim().toUpperCase(),
-          nombre: dto.nombre.trim(),
-          fecha_inicio: new Date(dto.fechaInicio),
-          fecha_fin: new Date(dto.fechaFin),
-          estado: dto.estado ?? 'PLANIFICADO',
-        },
-      });
-      return { id: row.id_periodo.toString() };
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const row = await this.prisma.periodos_academicos.create({
+            data: {
+              codigo: await this.nextPeriodCode(),
+              nombre: dto.nombre.trim(),
+              fecha_inicio: new Date(dto.fechaInicio),
+              fecha_fin: new Date(dto.fechaFin),
+              estado: dto.estado ?? 'PLANIFICADO',
+            },
+          });
+          return { id: row.id_periodo.toString() };
+        } catch (error) {
+          if (attempt === 2) throw error;
+        }
+      }
     } catch {
       throw new ConflictException('Ya existe un período con ese código.');
     }
@@ -251,7 +270,6 @@ export class UcotesisService {
       const row = await this.prisma.periodos_academicos.update({
         where: { id_periodo: parseId(id) },
         data: {
-          ...(dto.codigo && { codigo: dto.codigo.trim().toUpperCase() }),
           ...(dto.nombre && { nombre: dto.nombre.trim() }),
           ...(dto.fechaInicio && { fecha_inicio: new Date(dto.fechaInicio) }),
           ...(dto.fechaFin && { fecha_fin: new Date(dto.fechaFin) }),
@@ -276,8 +294,13 @@ export class UcotesisService {
     }
   }
 
-  async offers() {
+  async offers(user?: AuthenticatedUser) {
+    const manager =
+      !user ||
+      user.roles.some((role) => ['ADMIN', 'COORDINADOR'].includes(role)) ||
+      user.permissions.includes('UCOTESIS_OFERTAS_GESTIONAR');
     const rows = await this.prisma.ofertas.findMany({
+      where: manager ? {} : { estado: 'PUBLICADA' },
       include: {
         modalidades: true,
         periodos_academicos: true,
@@ -287,41 +310,48 @@ export class UcotesisService {
       },
       orderBy: { created_at: 'desc' },
     });
-    return { items: rows.map(mapOffer) };
+    return { nextCode: await this.nextOfferCode(), items: rows.map(mapOffer) };
   }
   async createOffer(userId: string, dto: CreateOfferDto) {
     validateOffer(dto);
     try {
-      const row = await this.prisma.ofertas.create({
-        data: {
-          codigo: dto.codigo.trim().toUpperCase(),
-          id_recinto_carrera: parseId(dto.recintoCarreraId),
-          id_modalidad: parseId(dto.modalidadId),
-          id_periodo: parseId(dto.periodoId),
-          titulo: dto.titulo.trim(),
-          descripcion: clean(dto.descripcion),
-          fecha_inicio_inscripcion: new Date(dto.fechaInicioInscripcion),
-          fecha_fin_inscripcion: new Date(dto.fechaFinInscripcion),
-          cupo_total: dto.cupoTotal,
-          monto: dto.monto,
-          moneda: dto.moneda ?? 'DOP',
-          estado: dto.estado ?? 'BORRADOR',
-          created_by: parseId(userId),
-          oferta_areas: {
-            create: (dto.areaIds ?? []).map((value) => ({
-              id_area: parseId(value),
-            })),
-          },
-          oferta_requisitos: {
-            create: (dto.requisitoIds ?? []).map((value) => ({
-              id_requisito: parseId(value),
-              obligatorio: true,
-            })),
-          },
-        },
-        include: offerInclude,
-      });
-      return mapOffer(row);
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+          const row = await this.prisma.ofertas.create({
+            data: {
+              codigo: await this.nextOfferCode(),
+              id_recinto_carrera: parseId(dto.recintoCarreraId),
+              id_modalidad: parseId(dto.modalidadId),
+              modalidad_ensenanza: dto.teachingMode,
+              id_periodo: parseId(dto.periodoId),
+              titulo: dto.titulo.trim(),
+              descripcion: clean(dto.descripcion),
+              fecha_inicio_inscripcion: new Date(dto.fechaInicioInscripcion),
+              fecha_fin_inscripcion: new Date(dto.fechaFinInscripcion),
+              cupo_total: dto.cupoTotal,
+              monto: dto.monto,
+              moneda: dto.moneda ?? 'DOP',
+              estado: dto.estado ?? 'BORRADOR',
+              created_by: parseId(userId),
+              oferta_areas: {
+                create: (dto.areaIds ?? []).map((value) => ({
+                  id_area: parseId(value),
+                })),
+              },
+              oferta_requisitos: {
+                create: (dto.requisitoIds ?? []).map((value) => ({
+                  id_requisito: parseId(value),
+                  obligatorio: true,
+                })),
+              },
+            },
+            include: offerInclude,
+          });
+          return mapOffer(row);
+        } catch (error) {
+          if (attempt === 2) throw error;
+        }
+      }
     } catch {
       throw new ConflictException(
         'No fue posible crear la oferta. Verifica el código y los catálogos seleccionados.',
@@ -358,11 +388,11 @@ export class UcotesisService {
         return db.ofertas.update({
           where: { id_oferta: offerId },
           data: {
-            ...(dto.codigo && { codigo: dto.codigo.trim().toUpperCase() }),
             ...(dto.recintoCarreraId && {
               id_recinto_carrera: parseId(dto.recintoCarreraId),
             }),
             ...(dto.modalidadId && { id_modalidad: parseId(dto.modalidadId) }),
+            ...(dto.teachingMode && { modalidad_ensenanza: dto.teachingMode }),
             ...(dto.periodoId && { id_periodo: parseId(dto.periodoId) }),
             ...(dto.titulo && { titulo: dto.titulo.trim() }),
             ...(dto.descripcion !== undefined && {
@@ -403,6 +433,30 @@ export class UcotesisService {
       });
     return { deleted: true };
   }
+
+  private async nextAreaCode() {
+    const last = await this.prisma.areas_investigacion.findFirst({
+      orderBy: { id_area: 'desc' },
+      select: { codigo: true },
+    });
+    return nextSequentialCode(last?.codigo, 'A');
+  }
+
+  private async nextPeriodCode() {
+    const last = await this.prisma.periodos_academicos.findFirst({
+      orderBy: { id_periodo: 'desc' },
+      select: { codigo: true },
+    });
+    return nextSequentialCode(last?.codigo, 'PER');
+  }
+
+  private async nextOfferCode() {
+    const last = await this.prisma.ofertas.findFirst({
+      orderBy: { id_oferta: 'desc' },
+      select: { codigo: true },
+    });
+    return nextSequentialCode(last?.codigo, 'OFE');
+  }
 }
 
 const offerInclude = {
@@ -427,6 +481,7 @@ function mapOffer(row: OfferRecord) {
     amount: Number(row.monto),
     currency: row.moneda,
     status: row.estado,
+    teachingMode: row.modalidad_ensenanza,
     modality: {
       id: row.modalidades.id_modalidad.toString(),
       name: row.modalidades.nombre,
@@ -477,6 +532,24 @@ function parseId(value: string) {
 }
 function clean(value?: string) {
   return value?.trim() || null;
+}
+function requireManualCode(value?: string) {
+  const code = value?.trim().toUpperCase();
+  if (!code) throw new BadRequestException('El cÃ³digo es obligatorio.');
+  return code;
+}
+export function nextSequentialCode(
+  lastCode: string | undefined,
+  fallbackPrefix: string,
+) {
+  const match = lastCode
+    ?.trim()
+    .toUpperCase()
+    .match(/^(.*?)(\d+)$/);
+  if (!match) return `${fallbackPrefix}0001`;
+  const prefix = match[1] || fallbackPrefix;
+  const suffix = match[2];
+  return `${prefix}${String(Number(suffix) + 1).padStart(suffix.length, '0')}`;
 }
 function assertKind(kind: string): asserts kind is CatalogKind {
   if (!['modalities', 'areas', 'requirements'].includes(kind))
