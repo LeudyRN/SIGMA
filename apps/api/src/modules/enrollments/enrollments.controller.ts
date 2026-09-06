@@ -19,6 +19,7 @@ import { PermissionsGuard } from '../auth/guards/permissions.guard';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import {
   AddParticipantDto,
+  RequestDocumentDto,
   ChangeEnrollmentStatusDto,
   UpsertEnrollmentStateDto,
   ValidateDocumentDto,
@@ -33,6 +34,12 @@ import { EnrollmentsService } from './enrollments.service';
 @Controller('enrollments')
 export class EnrollmentsController {
   constructor(private readonly service: EnrollmentsService) {}
+  @Post('document-requests') requestDocument(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: RequestDocumentDto,
+  ) {
+    return this.service.requestDocument(user.id, dto);
+  }
   @Get() list(
     @Query('search') search?: string,
     @Query('status') status?: string,

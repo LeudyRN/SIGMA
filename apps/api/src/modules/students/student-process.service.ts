@@ -69,6 +69,7 @@ export class StudentProcessService {
           title: offer.titulo,
           description: offer.descripcion,
           modality: offer.modalidades.nombre,
+          teachingMode: offer.modalidad_ensenanza,
           period: offer.periodos_academicos.nombre,
           campus: offer.recinto_carreras.recintos.nombre,
           career: offer.recinto_carreras.carreras.nombre,
@@ -127,9 +128,11 @@ export class StudentProcessService {
               },
               orderBy: { created_at: 'desc' },
             },
+            solicitudes_documentos: true,
             documentos_inscripcion: {
               select: {
                 id_documento: true,
+                id_solicitud: true,
                 tipo_documento: true,
                 nombre_archivo: true,
                 ruta_archivo: true,
@@ -159,6 +162,7 @@ export class StudentProcessService {
           id: enrollment.id_oferta.toString(),
           title: enrollment.ofertas.titulo,
           modality: enrollment.ofertas.modalidades.nombre,
+          teachingMode: enrollment.ofertas.modalidad_ensenanza,
           campus: enrollment.ofertas.recinto_carreras.recintos.nombre,
           career: enrollment.ofertas.recinto_carreras.carreras.nombre,
         },
@@ -183,8 +187,14 @@ export class StudentProcessService {
               }
             : null,
         })),
+        documentRequests: enrollment.solicitudes_documentos.map((r) => ({
+          id: r.id_solicitud.toString(),
+          type: r.tipo_documento,
+          instructions: r.instrucciones,
+        })),
         documents: enrollment.documentos_inscripcion.map((document) => ({
           id: document.id_documento.toString(),
+          requestId: document.id_solicitud?.toString() ?? null,
           type: document.tipo_documento,
           name: document.nombre_archivo,
           status: document.estado_validacion,

@@ -1,3 +1,4 @@
+import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
 import {
   BadRequestException,
   ConflictException,
@@ -293,8 +294,13 @@ export class UcotesisService {
     }
   }
 
-  async offers() {
+  async offers(user?: AuthenticatedUser) {
+    const manager =
+      !user ||
+      user.roles.some((role) => ['ADMIN', 'COORDINADOR'].includes(role)) ||
+      user.permissions.includes('UCOTESIS_OFERTAS_GESTIONAR');
     const rows = await this.prisma.ofertas.findMany({
+      where: manager ? {} : { estado: 'PUBLICADA' },
       include: {
         modalidades: true,
         periodos_academicos: true,
@@ -316,6 +322,7 @@ export class UcotesisService {
               codigo: await this.nextOfferCode(),
               id_recinto_carrera: parseId(dto.recintoCarreraId),
               id_modalidad: parseId(dto.modalidadId),
+              modalidad_ensenanza: dto.teachingMode,
               id_periodo: parseId(dto.periodoId),
               titulo: dto.titulo.trim(),
               descripcion: clean(dto.descripcion),
@@ -385,6 +392,7 @@ export class UcotesisService {
               id_recinto_carrera: parseId(dto.recintoCarreraId),
             }),
             ...(dto.modalidadId && { id_modalidad: parseId(dto.modalidadId) }),
+            ...(dto.teachingMode && { modalidad_ensenanza: dto.teachingMode }),
             ...(dto.periodoId && { id_periodo: parseId(dto.periodoId) }),
             ...(dto.titulo && { titulo: dto.titulo.trim() }),
             ...(dto.descripcion !== undefined && {
@@ -473,6 +481,7 @@ function mapOffer(row: OfferRecord) {
     amount: Number(row.monto),
     currency: row.moneda,
     status: row.estado,
+    teachingMode: row.modalidad_ensenanza,
     modality: {
       id: row.modalidades.id_modalidad.toString(),
       name: row.modalidades.nombre,

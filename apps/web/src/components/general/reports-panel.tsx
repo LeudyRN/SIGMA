@@ -24,6 +24,7 @@ interface ReportsData {
     byCampus: BreakdownItem[];
     byCareer: BreakdownItem[];
     byModality: BreakdownItem[];
+    byTeachingMode: BreakdownItem[];
     byArea: BreakdownItem[];
   };
   apiDbConsumption: {
@@ -96,7 +97,14 @@ export function ReportsPanel() {
       <div className="grid gap-5 lg:grid-cols-2">
         <Breakdown title="Inscripciones por recinto" items={report.data.enrollments.byCampus} />
         <Breakdown title="Inscripciones por carrera" items={report.data.enrollments.byCareer} />
-        <Breakdown title="Inscripciones por modalidad" items={report.data.enrollments.byModality} />
+        <Breakdown
+          title="Inscripciones por tipo de trabajo"
+          items={report.data.enrollments.byModality}
+        />
+        <Breakdown
+          title="Inscripciones por modalidad"
+          items={report.data.enrollments.byTeachingMode ?? []}
+        />
         <Breakdown title="Inscripciones por área" items={report.data.enrollments.byArea} />
       </div>
 

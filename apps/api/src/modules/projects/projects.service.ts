@@ -495,6 +495,7 @@ function mapProject(x: ProjectRecord) {
       code: x.inscripciones.codigo,
       offer: x.inscripciones.ofertas.titulo,
       modality: x.inscripciones.ofertas.modalidades.nombre,
+      teachingMode: x.inscripciones.ofertas.modalidad_ensenanza,
       campus: x.inscripciones.ofertas.recinto_carreras.recintos.nombre,
       career: x.inscripciones.ofertas.recinto_carreras.carreras.nombre,
     },

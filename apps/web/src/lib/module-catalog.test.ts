@@ -37,10 +37,27 @@ describe('module catalog', () => {
 
   it('keeps administrator access without requiring an exposed permission list', () => {
     expect(
-      canAccessModule('configuraciones', {
+      canAccessModule('ofertas', {
         roles: [{ code: 'ADMIN' }],
         permissions: [],
       }),
     ).toBe(true);
   });
+});
+
+it('hides internal rule screens for administrators and coordinators', () => {
+  for (const code of ['ADMIN', 'COORDINADOR']) {
+    for (const slug of ['configuraciones', 'estados-inscripcion', 'requisitos', 'modalidades']) {
+      expect(
+        canAccessModule(slug, {
+          roles: [{ code }],
+          permissions: [
+            'GOBIERNO_GESTIONAR',
+            'INSCRIPCIONES_GESTIONAR',
+            'UCOTESIS_OFERTAS_GESTIONAR',
+          ],
+        }),
+      ).toBe(false);
+    }
+  }
 });

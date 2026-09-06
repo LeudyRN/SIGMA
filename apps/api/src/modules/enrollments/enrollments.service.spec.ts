@@ -112,3 +112,80 @@ describe('EnrollmentsService documents', () => {
     );
   });
 });
+
+it('requires actionable feedback when rejecting documents', async () => {
+  const service = new EnrollmentsService(
+    {} as PrismaService,
+    {} as NotificationsService,
+  );
+  await expect(
+    service.validateDocument('1', '2', {
+      status: 'RECHAZADO',
+      observation: '  ',
+    }),
+  ).rejects.toBeInstanceOf(BadRequestException);
+});
+
+it('does not attach a file to a request from another enrollment', async () => {
+  const create = jest.fn();
+  const findRequest = jest.fn().mockResolvedValue(null);
+  const service = new EnrollmentsService(
+    {
+      estudiantes: {
+        findFirst: jest.fn().mockResolvedValue({ id_estudiante: 3n }),
+      },
+      inscripciones: {
+        findFirst: jest.fn().mockResolvedValue({ codigo: 'INS-7' }),
+      },
+      solicitudes_documentos: { findFirst: findRequest },
+      documentos_inscripcion: { create },
+    } as unknown as PrismaService,
+    {} as NotificationsService,
+  );
+  await expect(
+    service.uploadStudentDocument(
+      '10',
+      { enrollmentId: '7', type: 'Identidad', requestId: '9' },
+      FILE,
+    ),
+  ).rejects.toThrow('Solicitud documental no disponible');
+  expect(findRequest).toHaveBeenCalledWith({
+    where: { id_solicitud: 9n, id_inscripcion: 7n },
+  });
+  expect(create).not.toHaveBeenCalled();
+});
+
+it('notifies enrollment participants when coordination requests a document', async () => {
+  const createNotification = jest.fn().mockResolvedValue({});
+  const service = new EnrollmentsService(
+    {
+      inscripciones: {
+        findFirst: jest.fn(() =>
+          Promise.resolve({
+            id_inscripcion: 7n,
+            codigo: 'INS-7',
+            inscripcion_estudiantes: [{ estudiantes: { id_usuario: 10n } }],
+          }),
+        ),
+      },
+      solicitudes_documentos: {
+        create: jest.fn().mockResolvedValue({ id_solicitud: 9n }),
+      },
+    } as unknown as PrismaService,
+    { create: createNotification } as unknown as NotificationsService,
+  );
+  await expect(
+    service.requestDocument('1', {
+      enrollmentId: '7',
+      type: 'Identidad',
+      instructions: 'Ambos lados legibles',
+    }),
+  ).resolves.toEqual({ id: '9' });
+  expect(createNotification).toHaveBeenCalledWith(
+    expect.objectContaining({
+      userIds: ['10'],
+      url: '/app/documentos',
+      title: 'Documento solicitado',
+    }),
+  );
+});

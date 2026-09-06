@@ -14,8 +14,9 @@ import {
   Upload,
   XCircle,
 } from 'lucide-react';
-import { useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
+import { DocumentRequestsPanel } from './document-requests-panel';
 import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
@@ -126,27 +127,30 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
   const [viewItem, setViewItem] = useState<Item | undefined>();
   const [form, setForm] = useState<Record<string, string | string[]>>({});
   const [documentEnrollmentId, setDocumentEnrollmentId] = useState('');
+  const [documentRequestId, setDocumentRequestId] = useState('');
   const [documentType, setDocumentType] = useState('Propuesta de proyecto');
   const [documentFile, setDocumentFile] = useState<File | null>(null);
   const source = useQuery({
-    queryKey: ['operations', mode, isStudent],
+    queryKey: ['operations', mode, isStudent, user?.id],
     queryFn: () => loadMode(mode, isStudent),
   });
   const ucotesisCatalogs = useQuery({
     queryKey: ['operations', 'ucotesis-catalogs'],
     queryFn: () => apiJson<DataSet>('/ucotesis/catalogs'),
-    enabled: mode === 'ofertas' || mode === 'validaciones',
+    enabled: canManage && (mode === 'ofertas' || mode === 'validaciones'),
   });
   const enrollmentCatalogs = useQuery({
     queryKey: ['operations', 'enrollment-catalogs'],
     queryFn: () => apiJson<DataSet>('/enrollments/catalogs'),
-    enabled: [
-      'inscripciones',
-      'sustentantes',
-      'validaciones',
-      'estados-inscripcion',
-      'documentos',
-    ].includes(mode),
+    enabled:
+      !isStudent &&
+      [
+        'inscripciones',
+        'sustentantes',
+        'validaciones',
+        'estados-inscripcion',
+        'documentos',
+      ].includes(mode),
   });
   const projectCatalogs = useQuery({
     queryKey: ['operations', 'project-catalogs'],
@@ -224,6 +228,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
       const body = new FormData();
       body.append('enrollmentId', documentEnrollmentId);
       body.append('type', documentType.trim());
+      if (documentRequestId) body.append('requestId', documentRequestId);
       body.append('file', documentFile);
       const response = await apiFetch('/student-portal/documents', {
         method: 'POST',
@@ -255,6 +260,15 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
       return setEditorItem(item);
     }
     if (kind === 'status') return openStatus(item);
+    if (kind === 'reject-document') {
+      const observation = window.prompt('Indica qué debe corregir el estudiante:');
+      if (!observation?.trim()) return;
+      action.mutate({
+        path: `/enrollments/documents/${item.id}`,
+        body: { status: 'RECHAZADO', observation: observation.trim() },
+      });
+      return;
+    }
     const operation = destructiveOperation(mode, kind, item);
     if (!operation) return;
     if (operation.confirm && !window.confirm(operation.confirm)) return;
@@ -308,15 +322,35 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
             )}
         </div>
       </header>
-      {mode === 'documentos' && isStudent && (
-        <StudentDocumentUpload
+      {mode === 'documentos' && !source.isPending && !source.isError && (
+        <DocumentRequestsPanel
           enrollments={source.data?.items ?? []}
+          isStudent={isStudent}
+          canManage={canManage}
+          onSelect={(enrollmentId, requestId, type) => {
+            setDocumentEnrollmentId(enrollmentId);
+            setDocumentRequestId(requestId);
+            setDocumentType(type);
+          }}
+        />
+      )}
+      {mode === 'documentos' && isStudent && Boolean(source.data?.items?.length) && (
+        <StudentDocumentUpload
+          enrollments={(source.data?.items ?? []).filter(
+            (e) => !['CANCELADA', 'RECHAZADA'].includes(String(e.status)),
+          )}
           enrollmentId={documentEnrollmentId}
           documentType={documentType}
           file={documentFile}
           pending={uploadDocument.isPending}
-          onEnrollmentChange={setDocumentEnrollmentId}
-          onTypeChange={setDocumentType}
+          onEnrollmentChange={(id) => {
+            setDocumentEnrollmentId(id);
+            setDocumentRequestId('');
+          }}
+          onTypeChange={(type) => {
+            setDocumentType(type);
+            setDocumentRequestId('');
+          }}
           onFileChange={setDocumentFile}
           onSubmit={() => uploadDocument.mutate()}
         />
@@ -364,7 +398,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
           </p>
         ) : source.isError ? (
           <p className="p-10 text-center text-red-700">
-            No fue posible cargar el módulo desde la base de datos.
+            No fue posible cargar el módulo. {source.error.message}
           </p>
         ) : (
           <DataTable
@@ -386,9 +420,11 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
             }
           />
         )}
-        {!source.isPending && filtered.length === 0 && (
+        {!source.isPending && !source.isError && filtered.length === 0 && (
           <p className="border-t border-dashed p-10 text-center text-sm text-slate-500">
-            No hay registros para los filtros seleccionados.
+            {mode === 'proyectos-grado' && !canManage && !isStudent && !search && !status
+              ? 'No tienes proyectos asignados. Coordinación debe asignarte como asesor o jurado para que aparezcan aquí.'
+              : 'No hay registros para los filtros seleccionados.'}
           </p>
         )}
         <Pagination
@@ -479,10 +515,16 @@ function StudentDocumentUpload({
   onFileChange: (value: File | null) => void;
   onSubmit: () => void;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (!file && fileInputRef.current) fileInputRef.current.value = '';
+  }, [file]);
   return (
     <section className="rounded-3xl border bg-white p-4 shadow-sm sm:p-6">
       <div className="mb-4">
-        <h2 className="text-lg font-bold text-slate-950">Cargar documento</h2>
+        <h2 id="document-upload" className="text-lg font-bold text-slate-950">
+          Cargar documento
+        </h2>
         <p className="mt-1 text-sm text-slate-600">
           Adjunta el archivo a tu inscripción. Coordinación podrá revisarlo y comunicarte el
           resultado.
@@ -514,11 +556,14 @@ function StudentDocumentUpload({
             className="h-11 w-full rounded-xl border bg-white px-3 text-sm"
           >
             {[
-              'Propuesta de proyecto',
-              'Carta de solicitud',
-              'Documento de identidad',
-              'Récord de notas',
-              'Otro documento',
+              ...new Set([
+                documentType,
+                'Propuesta de proyecto',
+                'Carta de solicitud',
+                'Documento de identidad',
+                'Récord de notas',
+                'Otro documento',
+              ]),
             ].map((type) => (
               <option key={type}>{type}</option>
             ))}
@@ -527,7 +572,7 @@ function StudentDocumentUpload({
         <label>
           <span className="mb-1.5 block text-xs font-bold text-slate-700">Archivo *</span>
           <input
-            key={file?.name ?? 'empty-document'}
+            ref={fileInputRef}
             type="file"
             accept="application/pdf,image/png,image/jpeg"
             onChange={(event) => onFileChange(event.target.files?.[0] ?? null)}
@@ -677,7 +722,7 @@ function DataTable({
 }) {
   const columns = columnsFor(mode);
   return (
-    <div className="overflow-x-auto">
+    <div className="relative overflow-x-auto">
       <table className="w-full min-w-[760px] text-left text-sm">
         <thead className="bg-slate-50 text-xs tracking-wide text-slate-500 uppercase">
           <tr>
@@ -881,8 +926,19 @@ function buildEditor(
           options: select(catalogs.ucotesis?.campusCareers, (x) => `${x.campus} · ${x.career}`),
         },
         {
+          key: 'teachingMode',
+          label: 'Modalidad de enseñanza',
+          type: 'select',
+          required: true,
+          options: [
+            { value: 'PRESENCIAL', label: 'Presencial' },
+            { value: 'VIRTUAL', label: 'Virtual' },
+            { value: 'SEMIPRESENCIAL', label: 'Semipresencial' },
+          ],
+        },
+        {
           key: 'modalidadId',
-          label: 'Modalidad',
+          label: 'Tipo de trabajo de grado',
           type: 'select',
           required: true,
           options: select(catalogs.ucotesis?.modalities, (x) => String(x.name)),
@@ -1378,7 +1434,8 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'code:Código',
       'title:Oferta',
       'campusCareer:Recinto / carrera',
-      'modality:Modalidad',
+      'modality:Tipo de trabajo',
+      'teachingMode:Modalidad',
       'available:Cupos',
       'amount:Monto',
       'status:Estado',
@@ -1387,6 +1444,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'code:Código',
       'participants:Sustentantes',
       'offer:Oferta',
+      'offer.teachingMode:Modalidad',
       'amount:Monto',
       'status:Estado',
     ]),
@@ -1417,6 +1475,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'offer:Oferta',
       'type:Tipo',
       'name:Archivo',
+      'observation:Observación',
       'status:Estado',
     ]),
     'cuentas-bancarias': cols([
@@ -1432,6 +1491,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'reference:Referencia',
       'student:Estudiante',
       'enrollment:Código inscripción',
+      'enrollment.teachingMode:Modalidad',
       'amount:Monto',
       'method:Método',
       'proof:Comprobante',
@@ -1466,6 +1526,7 @@ function columnsFor(mode: OperationsMode): Array<{ key: string; label: string }>
       'title:Proyecto',
       'students:Estudiantes',
       'enrollment:Inscripción',
+      'enrollment.teachingMode:Modalidad',
       'area:Área',
       'teachers:Docentes',
       'status:Estado',
@@ -1502,8 +1563,14 @@ function cols(values: string[]) {
     return { key, label };
   });
 }
-export function readPath(item: Item, key: string) {
+export function readPath(item: Item, key: string): unknown {
+  if (key.includes('.')) {
+    const [parent, ...rest] = key.split('.');
+    const nested = item[parent];
+    return readPath(nested && typeof nested === 'object' ? (nested as Item) : {}, rest.join('.'));
+  }
   const value = item[key];
+  if (key === 'teachingMode' && !value) return 'Modalidad por definir';
   if (key === 'campusCareer' && value && typeof value === 'object')
     return `${(value as Item).campus} · ${(value as Item).career}`;
   if (key === 'offer' && value && typeof value === 'object')
@@ -1737,6 +1804,7 @@ function formFromItem(mode: OperationsMode, item: Item): Record<string, string |
       descripcion: text(item.description),
       recintoCarreraId: text(campusCareer?.id),
       modalidadId: text(modality?.id),
+      teachingMode: text(item.teachingMode),
       periodoId: text(period?.id),
       fechaInicioInscripcion: dateTimeInput(item.registrationStart),
       fechaFinInscripcion: dateTimeInput(item.registrationEnd),
@@ -1911,7 +1979,8 @@ const DETAIL_LABELS: Record<string, string> = {
   reviewObservation: 'Ajustes solicitados',
   campus: 'Recinto',
   career: 'Carrera',
-  modality: 'Modalidad',
+  modality: 'Tipo de trabajo',
+  teachingMode: 'Modalidad de enseñanza',
   period: 'Período',
 };
 

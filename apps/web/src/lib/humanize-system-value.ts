@@ -1,4 +1,7 @@
 const LABELS: Record<string, string> = {
+  PRESENCIAL: 'Presencial',
+  VIRTUAL: 'Virtual',
+  SEMIPRESENCIAL: 'Semipresencial',
   ACTIVO: 'Activo',
   ACTIVA: 'Activa',
   INACTIVO: 'Inactivo',

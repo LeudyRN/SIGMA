@@ -74,8 +74,10 @@ export class UcotesisController {
     return this.service.removePeriod(id);
   }
 
-  @Get('offers') offers() {
-    return this.service.offers();
+  @Get('offers')
+  @Permissions('UCOTESIS_OFERTAS_LEER')
+  offers(@CurrentUser() user: AuthenticatedUser) {
+    return this.service.offers(user);
   }
   @Post('offers') createOffer(
     @CurrentUser() user: AuthenticatedUser,

@@ -13,6 +13,7 @@ import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface
 import { NotificationsService } from '../notifications/notifications.service';
 import {
   AddParticipantDto,
+  RequestDocumentDto,
   ChangeEnrollmentStatusDto,
   UpsertEnrollmentStateDto,
   UploadEnrollmentDocumentDto,
@@ -248,11 +249,59 @@ export class EnrollmentsService {
     });
     return { id: row.id_validacion.toString() };
   }
+  async requestDocument(userId: string, dto: RequestDocumentDto) {
+    if (!dto.type.trim() || !dto.instructions.trim())
+      throw new BadRequestException(
+        'Indica el documento y las instrucciones para el estudiante.',
+      );
+    const enrollment = await this.prisma.inscripciones.findFirst({
+      where: {
+        id_inscripcion: parseId(dto.enrollmentId),
+        estados_inscripcion: { codigo: { notIn: ['CANCELADA', 'RECHAZADA'] } },
+      },
+      include: { inscripcion_estudiantes: { include: { estudiantes: true } } },
+    });
+    if (!enrollment)
+      throw new NotFoundException('Inscripción disponible no encontrada.');
+    const request = await this.prisma.solicitudes_documentos
+      .create({
+        data: {
+          id_inscripcion: enrollment.id_inscripcion,
+          tipo_documento: dto.type.trim(),
+          instrucciones: dto.instructions.trim(),
+          solicitado_por: parseId(userId),
+        },
+      })
+      .catch((error: unknown) => {
+        if ((error as { code?: string }).code === 'P2002')
+          throw new ConflictException(
+            'Ese documento ya fue solicitado. Revisa su estado antes de solicitarlo nuevamente.',
+          );
+        throw error;
+      });
+    await this.notifications
+      .create({
+        userIds: enrollment.inscripcion_estudiantes.map((p) =>
+          p.estudiantes.id_usuario.toString(),
+        ),
+        type: 'INSCRIPCION',
+        title: 'Documento solicitado',
+        message: `${enrollment.codigo}: ${dto.type.trim()}. ${dto.instructions.trim()}`,
+        url: '/app/documentos',
+      })
+      .catch(() => undefined);
+    return { id: request.id_solicitud.toString() };
+  }
+
   async validateDocument(
     userId: string,
     documentId: string,
     dto: ValidateDocumentDto,
   ) {
+    if (dto.status === 'RECHAZADO' && !dto.observation?.trim())
+      throw new BadRequestException(
+        'Indica el motivo del rechazo para que el estudiante pueda corregirlo.',
+      );
     const row = await this.prisma.documentos_inscripcion
       .update({
         where: { id_documento: parseId(documentId) },
@@ -323,12 +372,27 @@ export class EnrollmentsService {
     });
     if (!enrollment)
       throw new NotFoundException('Inscripción disponible no encontrada.');
+    if (!dto.type.trim())
+      throw new BadRequestException('Indica el tipo de documento.');
+    const request = dto.requestId
+      ? await this.prisma.solicitudes_documentos.findFirst({
+          where: {
+            id_solicitud: parseId(dto.requestId),
+            id_inscripcion: enrollmentId,
+          },
+        })
+      : null;
+    if (dto.requestId && !request)
+      throw new NotFoundException(
+        'Solicitud documental no disponible para esta inscripción.',
+      );
     const hash = createHash('sha256').update(file.buffer).digest('hex');
     const row = await this.prisma.documentos_inscripcion.create({
       data: {
         id_inscripcion: enrollmentId,
         id_estudiante: student.id_estudiante,
-        tipo_documento: dto.type.trim(),
+        tipo_documento: request?.tipo_documento ?? dto.type.trim(),
+        id_solicitud: request?.id_solicitud,
         nombre_archivo: file.originalname.slice(0, 255),
         ruta_archivo: `db://enrollment-document/${randomUUID()}`,
         mime_type: file.mimetype,
@@ -454,9 +518,11 @@ const enrollmentInclude = {
 };
 const enrollmentDetailInclude = {
   ...enrollmentInclude,
+  solicitudes_documentos: true,
   documentos_inscripcion: {
     select: {
       id_documento: true,
+      id_solicitud: true,
       tipo_documento: true,
       nombre_archivo: true,
       ruta_archivo: true,
@@ -495,6 +561,7 @@ function mapEnrollment(row: EnrollmentRecord) {
       code: row.ofertas.codigo,
       title: row.ofertas.titulo,
       modality: row.ofertas.modalidades.nombre,
+      teachingMode: row.ofertas.modalidad_ensenanza,
       period: row.ofertas.periodos_academicos.nombre,
       campus: row.ofertas.recinto_carreras.recintos.nombre,
       career: row.ofertas.recinto_carreras.carreras.nombre,
@@ -518,8 +585,14 @@ function mapEnrollment(row: EnrollmentRecord) {
       documents: row._count.documentos_inscripcion,
       validations: row._count.validaciones_requisitos,
     },
+    documentRequests: row.solicitudes_documentos.map((r) => ({
+      id: r.id_solicitud.toString(),
+      type: r.tipo_documento,
+      instructions: r.instrucciones,
+    })),
     documents: row.documentos_inscripcion.map((x) => ({
       id: x.id_documento.toString(),
+      requestId: x.id_solicitud?.toString() ?? null,
       type: x.tipo_documento,
       name: x.nombre_archivo,
       status: x.estado_validacion,

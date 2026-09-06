@@ -801,6 +801,7 @@ function mapPayment(x: PaymentRecord) {
       code: x.inscripciones.codigo,
       status: x.inscripciones.estados_inscripcion.codigo,
       offer: x.inscripciones.ofertas.titulo,
+      teachingMode: x.inscripciones.ofertas.modalidad_ensenanza,
     },
     student: principal
       ? {

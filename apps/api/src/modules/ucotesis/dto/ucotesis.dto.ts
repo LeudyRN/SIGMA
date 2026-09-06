@@ -63,6 +63,9 @@ export class CreatePeriodDto {
 export class UpdatePeriodDto extends PartialType(CreatePeriodDto) {}
 
 export class CreateOfferDto {
+  @ApiProperty({ enum: ['PRESENCIAL', 'VIRTUAL', 'SEMIPRESENCIAL'] })
+  @IsEnum(['PRESENCIAL', 'VIRTUAL', 'SEMIPRESENCIAL'])
+  teachingMode!: 'PRESENCIAL' | 'VIRTUAL' | 'SEMIPRESENCIAL';
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

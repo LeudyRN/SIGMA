@@ -370,3 +370,15 @@ pnpm prisma:deploy
 En desarrollo, use `pnpm prisma:migrate` únicamente para crear una migración nueva. Las cuentas bancarias se administran desde **Pagos y facturación > Cuentas bancarias**; no se configuran en variables de entorno.
 
 Consulte [Arquitectura](docs/architecture.md) y [Base de datos](docs/database.md) antes de ampliar módulos o modificar el esquema.
+
+### Modalidades y documentos de inscripción
+
+- La pantalla independiente de Modalidades está oculta; la modalidad se selecciona desde Ofertas.
+- La oferta conserva su tipo de trabajo (tesis, monográfico o trabajo final) y requiere una modalidad de enseñanza: presencial, virtual o semipresencial. Las ofertas anteriores quedan por definir hasta que Coordinación las edite.
+- Documentos permite a Coordinación solicitar un archivo con instrucciones. El estudiante ve la solicitud, adjunta el archivo y consulta su revisión. El rechazo requiere una observación y permite enviar otra versión; se conserva el historial.
+- El docente consulta ofertas publicadas y únicamente sus proyectos asignados, con sus asesores y jurados. Las pantallas internas de requisitos, estados y configuraciones no se muestran en la navegación ni en sus rutas.
+- Antes de iniciar una versión actualizada, ejecutar `pnpm prisma:deploy` y `pnpm prisma:generate`. La migración `20260905120000_modalidad_ensenanza_solicitudes_documentos` agrega la modalidad y solicitudes sin reemplazar los datos existentes.
+
+### Consulta de auditoría
+
+Auditoría ofrece paginación en el servidor y filtros por acción, módulo, búsqueda y rango de fechas (hora de República Dominicana). Los eventos nuevos identifican la ruta, el actor autenticado, el registro afectado y el resultado de la operación; las operaciones de autenticación no guardan credenciales ni el cuerpo de la solicitud. Los datos históricos incompletos permanecen intactos y se muestran como no registrados. La captura registra operaciones de escritura que alcanzan el interceptor; no representa un historial de lecturas ni de solicitudes rechazadas antes de ejecutar el controlador.

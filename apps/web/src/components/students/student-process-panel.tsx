@@ -22,6 +22,7 @@ interface Offer {
   title: string;
   description: string | null;
   modality: string;
+  teachingMode?: string | null;
   period: string;
   campus: string;
   career: string;
@@ -44,7 +45,13 @@ interface Enrollment {
   requestedAt: string;
   amount: number;
   currency: string;
-  offer: { title: string; modality: string; campus: string; career: string };
+  offer: {
+    title: string;
+    modality: string;
+    teachingMode?: string | null;
+    campus: string;
+    career: string;
+  };
   payments: Array<{
     id: string;
     reference: string;
@@ -162,7 +169,8 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                    {offer.modality}
+                    {offer.modality} ·{' '}
+                    {humanizeSystemValue(offer.teachingMode ?? 'Modalidad por definir')}
                   </span>
                   <h2 className="mt-3 text-xl font-bold">{offer.title}</h2>
                 </div>
@@ -275,7 +283,9 @@ function EnrollmentList({ items }: { items: Enrollment[] }) {
               <p className="text-xs font-bold text-blue-700">{item.code}</p>
               <h2 className="mt-1 text-xl font-bold">{item.offer.title}</h2>
               <p className="mt-1 text-sm text-slate-500">
-                {item.offer.modality} · {item.offer.campus} · {item.offer.career}
+                {item.offer.modality} ·{' '}
+                {humanizeSystemValue(item.offer.teachingMode ?? 'Modalidad por definir')} ·{' '}
+                {item.offer.campus} · {item.offer.career}
               </p>
             </div>
             <span className="rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-800">

@@ -103,7 +103,10 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<void> {
-    await this.authService.logout(getCookie(request, REFRESH_COOKIE));
+    const actorId = await this.authService.logout(
+      getCookie(request, REFRESH_COOKIE),
+    );
+    if (actorId) response.locals.auditUserId = actorId;
     response.clearCookie(ACCESS_COOKIE, this.cookieOptions());
     response.clearCookie(REFRESH_COOKIE, this.cookieOptions());
   }

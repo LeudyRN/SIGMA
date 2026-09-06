@@ -23,3 +23,11 @@ describe('OperationsPanel table values', () => {
     ).toBe('Validado · comprobante.jpg');
   });
 });
+
+it('shows teaching mode from enrollments and projects, including unclassified offers', () => {
+  expect(readPath({ offer: { teachingMode: 'VIRTUAL' } }, 'offer.teachingMode')).toBe('VIRTUAL');
+  expect(
+    readPath({ enrollment: { teachingMode: 'SEMIPRESENCIAL' } }, 'enrollment.teachingMode'),
+  ).toBe('SEMIPRESENCIAL');
+  expect(readPath({ teachingMode: null }, 'teachingMode')).toBe('Modalidad por definir');
+});

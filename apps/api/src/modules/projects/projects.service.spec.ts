@@ -173,3 +173,22 @@ describe('ProjectsService role workflow', () => {
     expect(upsert).not.toHaveBeenCalled();
   });
 });
+
+it('limits teacher queries to active assignments', async () => {
+  const findMany = jest.fn().mockResolvedValue([]);
+  const service = new ProjectsService(
+    {
+      docentes: { findUnique: jest.fn().mockResolvedValue({ id_docente: 4n }) },
+      proyectos_grado: { findMany },
+    } as unknown as PrismaService,
+    {} as NotificationsService,
+  );
+  await service.list(user(['DOCENTE']), {});
+  expect(findMany).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: {
+        proyecto_docentes: { some: { id_docente: 4n, estado: 'ACTIVO' } },
+      },
+    }),
+  );
+});

@@ -282,6 +282,7 @@ export class DashboardService {
           ofertas: {
             select: {
               modalidades: { select: { nombre: true } },
+              modalidad_ensenanza: true,
               recinto_carreras: {
                 select: {
                   carreras: { select: { nombre: true } },
@@ -307,11 +308,23 @@ export class DashboardService {
     const byCampus = new Map<string, number>();
     const byCareer = new Map<string, number>();
     const byModality = new Map<string, number>();
+    const byTeachingMode = new Map<string, number>();
     const byArea = new Map<string, number>();
     for (const row of enrollmentRows) {
       increment(byCampus, row.ofertas.recinto_carreras.recintos.nombre);
       increment(byCareer, row.ofertas.recinto_carreras.carreras.nombre);
       increment(byModality, row.ofertas.modalidades.nombre);
+      const labels = {
+        PRESENCIAL: 'Presencial',
+        VIRTUAL: 'Virtual',
+        SEMIPRESENCIAL: 'Semipresencial',
+      };
+      increment(
+        byTeachingMode,
+        row.ofertas.modalidad_ensenanza
+          ? labels[row.ofertas.modalidad_ensenanza]
+          : 'Modalidad por definir',
+      );
       for (const area of row.ofertas.oferta_areas) {
         increment(byArea, area.areas_investigacion.nombre);
       }
@@ -332,6 +345,7 @@ export class DashboardService {
         byCampus: mapBreakdown(byCampus),
         byCareer: mapBreakdown(byCareer),
         byModality: mapBreakdown(byModality),
+        byTeachingMode: mapBreakdown(byTeachingMode),
         byArea: mapBreakdown(byArea),
       },
       apiDbConsumption: {
