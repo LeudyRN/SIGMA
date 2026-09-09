@@ -94,10 +94,7 @@ export function AcademicHistoryImportDialog({
     if (!file) return;
     setLoading(true);
     try {
-      const response = await sendFile(
-        `/students/careers/${careerId}/history/import/preview`,
-        file,
-      );
+      const response = await sendFile(`/students/careers/${careerId}/history/import/preview`, file);
       setPreview((await response.json()) as HistoryPreview);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'No fue posible analizar el histórico.');
@@ -110,10 +107,7 @@ export function AcademicHistoryImportDialog({
     if (!file || !preview?.canImport) return;
     setLoading(true);
     try {
-      const response = await sendFile(
-        `/students/careers/${careerId}/history/import/confirm`,
-        file,
-      );
+      const response = await sendFile(`/students/careers/${careerId}/history/import/confirm`, file);
       const result = (await response.json()) as {
         created: number;
         unchanged: number;

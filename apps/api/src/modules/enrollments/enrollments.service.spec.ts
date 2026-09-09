@@ -43,7 +43,7 @@ describe('EnrollmentsService documents', () => {
     } as unknown as NotificationsService;
 
     const result = await new EnrollmentsService(
-      prisma,
+      transactional(prisma),
       notifications,
     ).uploadStudentDocument(
       '10',
@@ -81,6 +81,7 @@ describe('EnrollmentsService documents', () => {
   it('notifies the student when a document is validated', async () => {
     const prisma = {
       documentos_inscripcion: {
+        findUnique: jest.fn().mockResolvedValue({ id_inscripcion: 7n }),
         update: jest.fn().mockResolvedValue({
           id_documento: BigInt(5),
           nombre_archivo: 'propuesta.pdf',
@@ -95,7 +96,7 @@ describe('EnrollmentsService documents', () => {
       },
     } as unknown as PrismaService;
     const createNotification = jest.fn().mockResolvedValue({ created: 1 });
-    const service = new EnrollmentsService(prisma, {
+    const service = new EnrollmentsService(transactional(prisma), {
       create: createNotification,
     } as unknown as NotificationsService);
 
@@ -130,7 +131,7 @@ it('does not attach a file to a request from another enrollment', async () => {
   const create = jest.fn();
   const findRequest = jest.fn().mockResolvedValue(null);
   const service = new EnrollmentsService(
-    {
+    transactional({
       estudiantes: {
         findFirst: jest.fn().mockResolvedValue({ id_estudiante: 3n }),
       },
@@ -139,7 +140,7 @@ it('does not attach a file to a request from another enrollment', async () => {
       },
       solicitudes_documentos: { findFirst: findRequest },
       documentos_inscripcion: { create },
-    } as unknown as PrismaService,
+    } as unknown as PrismaService),
     {} as NotificationsService,
   );
   await expect(
@@ -158,7 +159,7 @@ it('does not attach a file to a request from another enrollment', async () => {
 it('notifies enrollment participants when coordination requests a document', async () => {
   const createNotification = jest.fn().mockResolvedValue({});
   const service = new EnrollmentsService(
-    {
+    transactional({
       inscripciones: {
         findFirst: jest.fn(() =>
           Promise.resolve({
@@ -171,7 +172,7 @@ it('notifies enrollment participants when coordination requests a document', asy
       solicitudes_documentos: {
         create: jest.fn().mockResolvedValue({ id_solicitud: 9n }),
       },
-    } as unknown as PrismaService,
+    } as unknown as PrismaService),
     { create: createNotification } as unknown as NotificationsService,
   );
   await expect(
@@ -189,3 +190,27 @@ it('notifies enrollment participants when coordination requests a document', asy
     }),
   );
 });
+
+function transactional(prisma: PrismaService): PrismaService {
+  const db = {
+    ...prisma,
+    inscripciones: {
+      ...prisma.inscripciones,
+      findUnique: jest.fn(() =>
+        Promise.resolve({
+          id_inscripcion: 7n,
+          version_lock: 0,
+          deuda_abierta_at: null,
+          fecha_cancelacion: null,
+          pagos: [],
+        }),
+      ),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+  };
+  return {
+    ...prisma,
+    $transaction: (operation: (client: typeof db) => unknown) =>
+      Promise.resolve(operation(db)),
+  } as unknown as PrismaService;
+}

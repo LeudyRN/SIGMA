@@ -1,4 +1,5 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { InsightsService, InsightsQuery } from './insights.service';
+import { Controller, Get, UseGuards, Query } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiCookieAuth,
@@ -19,7 +20,31 @@ import { DashboardService } from './dashboard.service';
 @ApiBearerAuth()
 @ApiCookieAuth(ACCESS_COOKIE)
 export class DashboardController {
-  constructor(private readonly dashboard: DashboardService) {}
+  constructor(
+    private readonly dashboard: DashboardService,
+    private readonly insights: InsightsService,
+  ) {}
+
+  @Get('insights')
+  @Permissions('GENERAL_RESUMEN_LEER')
+  getInsights(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: InsightsQuery,
+  ) {
+    return this.insights.load(user, query);
+  }
+
+  @Get('report-insights')
+  @Permissions('GENERAL_REPORTES_LEER')
+  @ApiOperation({
+    summary: 'Análisis por período para los reportes de UCOTESIS',
+  })
+  getReportInsights(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query() query: InsightsQuery,
+  ) {
+    return this.insights.load(user, query);
+  }
 
   @Get('summary')
   @Permissions('GENERAL_RESUMEN_LEER')

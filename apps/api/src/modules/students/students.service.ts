@@ -1,3 +1,4 @@
+import { meetsAcademicPolicy } from './academic-policy';
 import {
   BadRequestException,
   ConflictException,
@@ -226,6 +227,12 @@ export class StudentsService {
         await database.usuarios.update({
           where: { id_usuario: current.id_usuario },
           data: {
+            ...((dto.phone !== undefined &&
+              dto.phone.trim() !== current.usuarios.telefono) ||
+            (dto.whatsapp !== undefined &&
+              dto.whatsapp.trim() !== current.whatsapp)
+              ? { whatsapp_confirmado_at: null }
+              : {}),
             ...(matricula ? { matricula } : {}),
             ...(dto.firstName ? { nombres: dto.firstName.trim() } : {}),
             ...(dto.lastName ? { apellidos: dto.lastName.trim() } : {}),
@@ -532,8 +539,15 @@ export class StudentsService {
     const hasRequirements = evaluation.requiredRequirements > 0;
     const eligible =
       hasRequirements &&
-      evaluation.pendingBlockingRequirements.length === 0 &&
-      evaluation.electiveCredits.pending === 0;
+      meetsAcademicPolicy(
+        evaluation.pendingBlockingRequirements,
+        evaluation.electiveCredits.pending,
+        {
+          maxSubjects: selected.planes_estudio.max_asignaturas_pendientes ?? 0,
+          maxCredits: selected.planes_estudio.max_creditos_pendientes ?? 0,
+          fromSemester: selected.planes_estudio.desde_semestre ?? 1,
+        },
+      );
     const graduationRequirements = evaluation.pendingGraduationRequirements.map(
       (requirement) => ({
         code: requirement.code,
@@ -558,20 +572,28 @@ export class StudentsService {
       electiveCredits: evaluation.electiveCredits,
       graduationRequirements,
       pendingSubjects,
-      reason: !hasRequirements
-        ? 'El plan de estudio no tiene asignaturas obligatorias configuradas.'
-        : evaluation.pendingBlockingRequirements.length &&
-            evaluation.electiveCredits.pending
-          ? `Existen asignaturas obligatorias pendientes y faltan ${evaluation.electiveCredits.pending} créditos optativos.`
-          : evaluation.pendingBlockingRequirements.length
-            ? 'Existen asignaturas obligatorias pendientes o no aprobadas.'
-            : evaluation.electiveCredits.pending
-              ? `Faltan ${evaluation.electiveCredits.pending} créditos optativos válidos del plan.`
-              : graduationRequirements.length
-                ? `Cumple los requisitos previos. Puede inscribir ${graduationRequirements.map((requirement) => requirement.name).join(', ')}.`
-                : evaluation.electiveCredits.required
-                  ? `Cumple las asignaturas obligatorias y los ${evaluation.electiveCredits.required} créditos optativos del plan.`
-                  : 'Cumple el 100% de las asignaturas obligatorias del plan.',
+      academicPolicy: {
+        maxSubjects: selected.planes_estudio.max_asignaturas_pendientes ?? 0,
+        maxCredits: selected.planes_estudio.max_creditos_pendientes ?? 0,
+        fromSemester: selected.planes_estudio.desde_semestre ?? 1,
+      },
+      reason:
+        eligible && pendingSubjects.length
+          ? 'Cumple la tolerancia de asignaturas y créditos de los últimos semestres configurada para este plan.'
+          : !hasRequirements
+            ? 'El plan de estudio no tiene asignaturas obligatorias configuradas.'
+            : evaluation.pendingBlockingRequirements.length &&
+                evaluation.electiveCredits.pending
+              ? `Existen asignaturas obligatorias pendientes y faltan ${evaluation.electiveCredits.pending} créditos optativos.`
+              : evaluation.pendingBlockingRequirements.length
+                ? 'Existen asignaturas obligatorias pendientes o no aprobadas.'
+                : evaluation.electiveCredits.pending
+                  ? `Faltan ${evaluation.electiveCredits.pending} créditos optativos válidos del plan.`
+                  : graduationRequirements.length
+                    ? `Cumple los requisitos previos. Puede inscribir ${graduationRequirements.map((requirement) => requirement.name).join(', ')}.`
+                    : evaluation.electiveCredits.required
+                      ? `Cumple las asignaturas obligatorias y los ${evaluation.electiveCredits.required} créditos optativos del plan.`
+                      : 'Cumple el 100% de las asignaturas obligatorias del plan.',
       evaluatedAt: new Date().toISOString(),
     };
   }

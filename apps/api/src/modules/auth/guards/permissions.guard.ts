@@ -59,6 +59,7 @@ export class PermissionsGuard implements CanActivate {
       },
     });
     const roleCodes = assignments.map(({ roles }) => roles.codigo);
+    request.user.roles = roleCodes;
     if (roleCodes.includes(RoleCode.Admin)) {
       request.user.permissions = ['*'];
       return true;

@@ -53,8 +53,9 @@ export function DocumentRequestsPanel({
     <section className="space-y-4 rounded-3xl border bg-white p-6 shadow-sm">
       <h2 className="text-lg font-bold">Documentos solicitados</h2>
       <p className="text-sm text-slate-600">
-        Coordinación solicita el documento e indica qué debe contener. El estudiante lo adjunta y
-        recibe el resultado de la revisión; si requiere corrección, puede enviar una nueva versión.
+        Oficinistas o Secretaría solicitan el documento e indican qué debe contener. El estudiante
+        lo adjunta y recibe el resultado de la revisión; si requiere corrección, puede enviar una
+        nueva versión.
       </p>
       {canManage && (
         <form
@@ -123,7 +124,7 @@ export function DocumentRequestsPanel({
         <p className="text-sm text-slate-600">
           No hay documentos solicitados.{' '}
           {isStudent
-            ? 'Aquí aparecerán las solicitudes de Coordinación.'
+            ? 'Aquí aparecerán las solicitudes de UCOTESIS.'
             : 'Selecciona una inscripción para enviar la primera solicitud.'}
         </p>
       )}
@@ -139,7 +140,7 @@ export function DocumentRequestsPanel({
           {latest?.observation ? (
             <p className="mt-1 text-sm">Observación: {String(latest.observation)}</p>
           ) : null}
-          {isStudent &&
+          {(isStudent || canManage) &&
             !['CANCELADA', 'RECHAZADA'].includes(String(enrollment.status)) &&
             (!latest || latest.status === 'RECHAZADO') && (
               <Button

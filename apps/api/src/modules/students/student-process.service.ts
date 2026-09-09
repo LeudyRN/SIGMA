@@ -29,6 +29,7 @@ export class StudentProcessService {
       where: {
         id_recinto_carrera: { in: campusCareerIds },
         estado: 'PUBLICADA',
+        notas_remitidas_at: null,
         fecha_fin_inscripcion: { gte: now },
       },
       include: {
@@ -229,6 +230,7 @@ export class StudentProcessService {
       where: {
         id_oferta: offerId,
         estado: 'PUBLICADA',
+        notas_remitidas_at: null,
         fecha_inicio_inscripcion: { lte: new Date() },
         fecha_fin_inscripcion: { gte: new Date() },
         recinto_carreras: {
@@ -272,16 +274,14 @@ export class StudentProcessService {
     );
     if (!eligibility.eligible) {
       throw new BadRequestException(
-        'No puedes solicitar la inscripción mientras existan asignaturas pendientes.',
+        'No cumples la política de elegibilidad de tu plan de estudios.',
       );
     }
     const state = await this.prisma.estados_inscripcion.findFirst({
-      where: { codigo: 'PENDIENTE_PAGO', estado: 'ACTIVO' },
+      where: { codigo: 'VALIDANDO', estado: 'ACTIVO' },
     });
     if (!state)
-      throw new ConflictException(
-        'El estado PENDIENTE_PAGO no está configurado.',
-      );
+      throw new ConflictException('El estado VALIDANDO no está configurado.');
 
     try {
       return await this.prisma.$transaction(async (database) => {
@@ -289,6 +289,7 @@ export class StudentProcessService {
           where: {
             id_oferta: offerId,
             estado: 'PUBLICADA',
+            notas_remitidas_at: null,
             fecha_inicio_inscripcion: { lte: new Date() },
             fecha_fin_inscripcion: { gte: new Date() },
             cupo_reservado: { lt: offer.cupo_total },
@@ -320,7 +321,7 @@ export class StudentProcessService {
         return {
           id: enrollment.id_inscripcion.toString(),
           code: enrollment.codigo,
-          status: 'PENDIENTE_PAGO',
+          status: 'VALIDANDO',
         };
       });
     } catch (error) {

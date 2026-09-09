@@ -63,7 +63,11 @@ test('teacher reads offers without requesting management catalogs', async ({ con
 });
 
 test('coordination requests a document from the documents screen', async ({ context, page }) => {
-  await authenticate(context, page, 'COORDINADOR', ['INSCRIPCIONES_GESTIONAR']);
+  await authenticate(context, page, 'COORDINADOR', [
+    'INSCRIPCIONES_GESTIONAR',
+    'MONOGRAFICO_RECIBIR',
+    'MONOGRAFICO_VALIDAR',
+  ]);
   await page.route('**/api/enrollments', (route) =>
     route.fulfill({ json: { items: [enrollment] } }),
   );

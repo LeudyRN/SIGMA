@@ -25,6 +25,7 @@ blob-report/
 npm-debug.log*
 pnpm-debug.log*
 tmp/
+.tmp/
 temp/
 *.tmp
 *.swp

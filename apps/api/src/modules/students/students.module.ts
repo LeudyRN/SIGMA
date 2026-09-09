@@ -11,6 +11,7 @@ import { StudentProcessService } from './student-process.service';
 
 @Module({
   imports: [AuthModule, EnrollmentsModule],
+  exports: [StudentsService],
   controllers: [StudentsController, StudentPortalController],
   providers: [
     StudentsService,

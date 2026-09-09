@@ -1,5 +1,6 @@
 import {
   Body,
+  GoneException,
   Controller,
   Get,
   Param,
@@ -137,6 +138,10 @@ export class StudentPortalController {
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: CreatePaymentIntentDto,
   ) {
-    return this.process.createPaymentIntent(user.id, dto);
+    void user;
+    void dto;
+    throw new GoneException(
+      'Usa Pagos: Secretaría debe abrir la deuda antes de iniciar la simulación.',
+    );
   }
 }

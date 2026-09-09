@@ -119,6 +119,15 @@ export class EnrollmentsService {
     id: string,
     dto: ChangeEnrollmentStatusDto,
   ) {
+    if (
+      ['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGADA', 'CONFIRMADA'].includes(
+        dto.statusCode.toUpperCase(),
+      )
+    )
+      throw new BadRequestException(
+        'Usa la validación, apertura de deuda y pago del flujo de monográficos.',
+      );
+
     const enrollmentId = parseId(id);
     const next = await this.prisma.estados_inscripcion.findFirst({
       where: { codigo: dto.statusCode.toUpperCase(), estado: 'ACTIVO' },
@@ -140,7 +149,10 @@ export class EnrollmentsService {
     const cancel = ['CANCELADA', 'RECHAZADA'].includes(next.codigo);
     const updated = await this.prisma.$transaction(async (db) => {
       const row = await db.inscripciones.update({
-        where: { id_inscripcion: enrollmentId },
+        where: {
+          id_inscripcion: enrollmentId,
+          version_lock: previous.version_lock,
+        },
         data: {
           id_estado: next.id_estado,
           version_lock: { increment: 1 },
@@ -263,22 +275,22 @@ export class EnrollmentsService {
     });
     if (!enrollment)
       throw new NotFoundException('Inscripción disponible no encontrada.');
-    const request = await this.prisma.solicitudes_documentos
-      .create({
+    const request = await this.editExpedient(enrollment.id_inscripcion, (db) =>
+      db.solicitudes_documentos.create({
         data: {
           id_inscripcion: enrollment.id_inscripcion,
           tipo_documento: dto.type.trim(),
           instrucciones: dto.instructions.trim(),
           solicitado_por: parseId(userId),
         },
-      })
-      .catch((error: unknown) => {
-        if ((error as { code?: string }).code === 'P2002')
-          throw new ConflictException(
-            'Ese documento ya fue solicitado. Revisa su estado antes de solicitarlo nuevamente.',
-          );
-        throw error;
-      });
+      }),
+    ).catch((error: unknown) => {
+      if ((error as { code?: string }).code === 'P2002')
+        throw new ConflictException(
+          'Ese documento ya fue solicitado. Revisa su estado antes de solicitarlo nuevamente.',
+        );
+      throw error;
+    });
     await this.notifications
       .create({
         userIds: enrollment.inscripcion_estudiantes.map((p) =>
@@ -302,8 +314,13 @@ export class EnrollmentsService {
       throw new BadRequestException(
         'Indica el motivo del rechazo para que el estudiante pueda corregirlo.',
       );
-    const row = await this.prisma.documentos_inscripcion
-      .update({
+    const existing = await this.prisma.documentos_inscripcion.findUnique({
+      where: { id_documento: parseId(documentId) },
+      select: { id_inscripcion: true },
+    });
+    if (!existing) throw new NotFoundException('Documento no encontrado.');
+    const row = await this.editExpedient(existing.id_inscripcion, (db) =>
+      db.documentos_inscripcion.update({
         where: { id_documento: parseId(documentId) },
         data: {
           estado_validacion: dto.status,
@@ -321,10 +338,8 @@ export class EnrollmentsService {
             },
           },
         },
-      })
-      .catch(() => {
-        throw new NotFoundException('Documento no encontrado.');
-      });
+      }),
+    );
     await this.notifications
       .create({
         userIds: row.inscripciones.inscripcion_estudiantes.map((participant) =>
@@ -342,6 +357,62 @@ export class EnrollmentsService {
       })
       .catch(() => undefined);
     return { id: row.id_documento.toString(), status: row.estado_validacion };
+  }
+  private async editExpedient<T>(
+    enrollmentId: bigint,
+    operation: (db: Prisma.TransactionClient) => Promise<T>,
+  ): Promise<T> {
+    return this.prisma.$transaction(async (db) => {
+      const row = await db.inscripciones.findUnique({
+        where: { id_inscripcion: enrollmentId },
+        include: {
+          pagos: { where: { estado: 'APROBADO' }, select: { id_pago: true } },
+        },
+      });
+      if (!row || row.fecha_cancelacion)
+        throw new ConflictException('El expediente no admite cambios.');
+      if (row.deuda_abierta_at && !row.pagos.length)
+        throw new ConflictException(
+          'El expediente está validado y tiene una deuda activa. Completa el pago antes de incorporar documentos finales.',
+        );
+      const changed = await db.inscripciones.updateMany({
+        where: { id_inscripcion: enrollmentId, version_lock: row.version_lock },
+        data: {
+          version_lock: { increment: 1 },
+          ...(!row.deuda_abierta_at
+            ? { validado_at: null, validado_por: null }
+            : {}),
+        },
+      });
+      if (changed.count !== 1)
+        throw new ConflictException(
+          'El expediente cambió. Actualiza antes de continuar.',
+        );
+      return operation(db);
+    });
+  }
+  async uploadReceivedDocument(
+    dto: UploadEnrollmentDocumentDto,
+    file?: UploadedEnrollmentDocument,
+  ) {
+    const enrollment = await this.prisma.inscripciones.findUnique({
+      where: { id_inscripcion: parseId(dto.enrollmentId) },
+      include: {
+        inscripcion_estudiantes: {
+          include: { estudiantes: true },
+          orderBy: { es_principal: 'desc' },
+          take: 1,
+        },
+      },
+    });
+    const participant = enrollment?.inscripcion_estudiantes[0];
+    if (!participant)
+      throw new NotFoundException('Inscripción con estudiante no encontrada.');
+    return this.uploadStudentDocument(
+      participant.estudiantes.id_usuario.toString(),
+      dto,
+      file,
+    );
   }
   async uploadStudentDocument(
     userId: string,
@@ -387,23 +458,25 @@ export class EnrollmentsService {
         'Solicitud documental no disponible para esta inscripción.',
       );
     const hash = createHash('sha256').update(file.buffer).digest('hex');
-    const row = await this.prisma.documentos_inscripcion.create({
-      data: {
-        id_inscripcion: enrollmentId,
-        id_estudiante: student.id_estudiante,
-        tipo_documento: request?.tipo_documento ?? dto.type.trim(),
-        id_solicitud: request?.id_solicitud,
-        nombre_archivo: file.originalname.slice(0, 255),
-        ruta_archivo: `db://enrollment-document/${randomUUID()}`,
-        mime_type: file.mimetype,
-        tamano_bytes: BigInt(file.size),
-        hash_sha256: hash,
-        contenido: Uint8Array.from(file.buffer),
-      },
-    });
+    const row = await this.editExpedient(enrollmentId, (db) =>
+      db.documentos_inscripcion.create({
+        data: {
+          id_inscripcion: enrollmentId,
+          id_estudiante: student.id_estudiante,
+          tipo_documento: request?.tipo_documento ?? dto.type.trim(),
+          id_solicitud: request?.id_solicitud,
+          nombre_archivo: file.originalname.slice(0, 255),
+          ruta_archivo: `db://enrollment-document/${randomUUID()}`,
+          mime_type: file.mimetype,
+          tamano_bytes: BigInt(file.size),
+          hash_sha256: hash,
+          contenido: Uint8Array.from(file.buffer),
+        },
+      }),
+    );
     await this.notifications
       .create({
-        roleCodes: ['ADMIN', 'COORDINADOR'],
+        roleCodes: ['ADMIN', 'COORDINADOR', 'SECRETARIA', 'OFICINISTA'],
         type: 'INSCRIPCION',
         title: 'Nuevo documento de inscripción',
         message: `${enrollment.codigo}: ${dto.type.trim()}`,
@@ -439,7 +512,8 @@ export class EnrollmentsService {
       );
     const canManage =
       user.roles.some((role) => ['ADMIN', 'COORDINADOR'].includes(role)) ||
-      user.permissions.includes('INSCRIPCIONES_GESTIONAR');
+      user.permissions.includes('INSCRIPCIONES_GESTIONAR') ||
+      user.permissions.includes('MONOGRAFICO_RECIBIR');
     const ownsDocument = row.inscripciones.inscripcion_estudiantes.some(
       (participant) => participant.estudiantes.id_usuario === parseId(user.id),
     );

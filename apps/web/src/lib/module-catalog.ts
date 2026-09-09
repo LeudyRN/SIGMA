@@ -232,7 +232,7 @@ export const moduleCatalog: ModuleGroup[] = [
       },
       {
         slug: 'pagos',
-        label: 'Pagos',
+        label: 'Deudas y pagos',
         description: 'Intenciones, montos, referencias y estados.',
         status: 'available',
       },
@@ -262,6 +262,12 @@ export const moduleCatalog: ModuleGroup[] = [
     label: 'Proyectos de grado',
     description: 'Seguimiento académico posterior a la inscripción.',
     modules: [
+      {
+        slug: 'monograficos',
+        label: 'Gestión de monográficos',
+        description: 'Expedientes, deudas, grupos, presupuestos y calificaciones.',
+        status: 'available',
+      },
       {
         slug: 'proyectos-grado',
         label: 'Proyectos',
@@ -312,6 +318,7 @@ export function findModuleBySlug(slug: string) {
 }
 
 const MODULE_PERMISSIONS: Record<string, string[]> = {
+  monograficos: ['MONOGRAFICO_LEER'],
   resumen: ['GENERAL_RESUMEN_LEER'],
   reportes: ['GENERAL_REPORTES_LEER'],
   usuarios: ['IDENTIDAD_USUARIOS_GESTIONAR'],
@@ -337,10 +344,10 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   sustentantes: ['INSCRIPCIONES_GESTIONAR'],
   validaciones: ['INSCRIPCIONES_GESTIONAR'],
   'estados-inscripcion': ['INSCRIPCIONES_GESTIONAR'],
-  documentos: ['INSCRIPCIONES_PROPIAS_GESTIONAR', 'INSCRIPCIONES_GESTIONAR'],
+  documentos: ['INSCRIPCIONES_PROPIAS_GESTIONAR', 'MONOGRAFICO_RECIBIR'],
   'metodos-pago': ['PAGOS_GESTIONAR'],
   'cuentas-bancarias': ['PAGOS_GESTIONAR'],
-  pagos: ['PAGOS_PROPIOS_GESTIONAR', 'PAGOS_GESTIONAR'],
+  pagos: ['MONOGRAFICO_LEER'],
   transacciones: ['PAGOS_GESTIONAR'],
   conciliaciones: ['PAGOS_GESTIONAR'],
   facturas: ['PAGOS_PROPIOS_GESTIONAR', 'PAGOS_GESTIONAR'],
