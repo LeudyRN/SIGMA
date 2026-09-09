@@ -505,6 +505,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
 function getWorkspaceLabel(user: AuthUser): string {
   const codes = new Set(user.roles.map((role) => role.code));
+  if (codes.has('SECRETARIA')) return 'Secretaría UCOTESIS';
+  if (codes.has('OFICINISTA')) return 'Recepción UCOTESIS';
+  if (codes.has('ENCARGADO')) return 'Dirección UCOTESIS';
+  if (codes.has('CAJA')) return 'Caja local';
+  if (codes.has('COORDINADOR_MONOGRAFICO')) return 'Coordinación de monográfico';
   if (codes.has('ESTUDIANTE')) return 'Portal estudiantil';
   if (codes.has('DOCENTE')) return 'Portal docente';
   if (codes.has('TESORERIA')) return 'Panel de tesorería';

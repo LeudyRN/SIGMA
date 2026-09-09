@@ -1,10 +1,6 @@
 const API_URL = '/api';
 const REFRESH_PATH = '/auth/refresh';
-const PATHS_WITHOUT_AUTOMATIC_REFRESH = new Set([
-  '/auth/login',
-  REFRESH_PATH,
-  '/auth/logout',
-]);
+const PATHS_WITHOUT_AUTOMATIC_REFRESH = new Set(['/auth/login', REFRESH_PATH, '/auth/logout']);
 
 let refreshRequest: Promise<boolean> | null = null;
 

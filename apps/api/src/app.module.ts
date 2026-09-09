@@ -1,3 +1,4 @@
+import { MonographModule } from './modules/monograph/monograph.module';
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { AcademicModule } from './modules/academic/academic.module';
@@ -25,6 +26,7 @@ import { validateEnvironment } from './shared/config/environment';
       validate: validateEnvironment,
     }),
     PrismaModule,
+    MonographModule,
     AuthModule,
     DashboardModule,
     UsersModule,

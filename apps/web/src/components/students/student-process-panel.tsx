@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   BadgeDollarSign,
@@ -108,7 +110,9 @@ export function StudentProcessPanel({ mode }: { mode: ProcessMode }) {
   const request = useMutation({
     mutationFn: (offerId: string) => write('/student-portal/enrollments', { offerId }),
     onSuccess: () => {
-      toast.success('Solicitud creada. Continúa con el pago.');
+      toast.success(
+        'Solicitud creada. Confirma tu contacto y sigue la revisión de Secretaría en Gestión de monográficos.',
+      );
       void client.invalidateQueries({ queryKey: ['student-portal'] });
     },
     onError: (error: Error) => toast.error(error.message),
@@ -301,6 +305,12 @@ function EnrollmentList({ items }: { items: Enrollment[] }) {
               }).format(item.amount)}
             </strong>
           </p>
+          <Link
+            href="/app/monograficos"
+            className="mt-4 inline-block text-sm font-semibold text-blue-700 underline"
+          >
+            Seguir recepción, revisión, pago y grupo
+          </Link>
         </article>
       ))}
       {items.length === 0 && <Empty text="No tienes inscripciones registradas." />}

@@ -230,10 +230,13 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
       body.append('type', documentType.trim());
       if (documentRequestId) body.append('requestId', documentRequestId);
       body.append('file', documentFile);
-      const response = await apiFetch('/student-portal/documents', {
-        method: 'POST',
-        body,
-      });
+      const response = await apiFetch(
+        isStudent ? '/student-portal/documents' : '/enrollments/received-documents',
+        {
+          method: 'POST',
+          body,
+        },
+      );
       if (!response.ok) throw new Error(await readApiError(response));
       return response.json();
     },
@@ -326,7 +329,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
         <DocumentRequestsPanel
           enrollments={source.data?.items ?? []}
           isStudent={isStudent}
-          canManage={canManage}
+          canManage={canManage || (user?.permissions.includes('MONOGRAFICO_RECIBIR') ?? false)}
           onSelect={(enrollmentId, requestId, type) => {
             setDocumentEnrollmentId(enrollmentId);
             setDocumentRequestId(requestId);
@@ -334,27 +337,29 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
           }}
         />
       )}
-      {mode === 'documentos' && isStudent && Boolean(source.data?.items?.length) && (
-        <StudentDocumentUpload
-          enrollments={(source.data?.items ?? []).filter(
-            (e) => !['CANCELADA', 'RECHAZADA'].includes(String(e.status)),
-          )}
-          enrollmentId={documentEnrollmentId}
-          documentType={documentType}
-          file={documentFile}
-          pending={uploadDocument.isPending}
-          onEnrollmentChange={(id) => {
-            setDocumentEnrollmentId(id);
-            setDocumentRequestId('');
-          }}
-          onTypeChange={(type) => {
-            setDocumentType(type);
-            setDocumentRequestId('');
-          }}
-          onFileChange={setDocumentFile}
-          onSubmit={() => uploadDocument.mutate()}
-        />
-      )}
+      {mode === 'documentos' &&
+        (isStudent || canManage || user?.permissions.includes('MONOGRAFICO_RECIBIR')) &&
+        Boolean(source.data?.items?.length) && (
+          <StudentDocumentUpload
+            enrollments={(source.data?.items ?? []).filter(
+              (e) => !['CANCELADA', 'RECHAZADA'].includes(String(e.status)),
+            )}
+            enrollmentId={documentEnrollmentId}
+            documentType={documentType}
+            file={documentFile}
+            pending={uploadDocument.isPending}
+            onEnrollmentChange={(id) => {
+              setDocumentEnrollmentId(id);
+              setDocumentRequestId('');
+            }}
+            onTypeChange={(type) => {
+              setDocumentType(type);
+              setDocumentRequestId('');
+            }}
+            onFileChange={setDocumentFile}
+            onSubmit={() => uploadDocument.mutate()}
+          />
+        )}
       {(mode === 'transacciones' || mode === 'conciliaciones') && <FinancialFlowHelp mode={mode} />}
       <div className="overflow-hidden rounded-3xl border bg-white shadow-sm">
         <div className="flex flex-col gap-3 border-b bg-slate-50 p-3 sm:flex-row sm:items-end sm:p-4">
@@ -461,19 +466,27 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
               save.mutate();
             }}
           >
-            {editor.fields
-              .filter(
-                (field) =>
-                  !field.visibleWhen || form[field.visibleWhen.field] === field.visibleWhen.value,
-              )
-              .map((field) => (
-                <EditorField
-                  key={field.key}
-                  field={field}
-                  value={form[field.key] ?? ''}
-                  onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))}
-                />
-              ))}
+            {mode === 'ofertas' ? (
+              <OfferEditorFields
+                fields={editor.fields}
+                form={form}
+                onChange={(key, value) => setForm((current) => ({ ...current, [key]: value }))}
+              />
+            ) : (
+              editor.fields
+                .filter(
+                  (field) =>
+                    !field.visibleWhen || form[field.visibleWhen.field] === field.visibleWhen.value,
+                )
+                .map((field) => (
+                  <EditorField
+                    key={field.key}
+                    field={field}
+                    value={form[field.key] ?? ''}
+                    onChange={(value) => setForm((current) => ({ ...current, [field.key]: value }))}
+                  />
+                ))
+            )}
           </form>
         )}
       </EntityDialog>
@@ -911,7 +924,8 @@ function buildEditor(
   if (mode === 'ofertas')
     return {
       title: 'Crear oferta UCOTESIS',
-      description: 'Segmenta por recinto, carrera, modalidad, período, cupo, fechas y monto.',
+      description:
+        'Define el curso, las fechas y el costo. Secretaría revisará cada expediente antes de abrir la deuda.',
       submitLabel: item ? 'Guardar cambios' : 'Crear oferta',
       endpoint: (value) => `/ucotesis/offers${value ? `/${value.id}` : ''}`,
       method: item ? 'PATCH' : 'POST',
@@ -1161,7 +1175,9 @@ function buildEditor(
           label: 'Método o proveedor',
           type: 'select',
           required: true,
-          options: select(catalogs.payments?.methods, (x) => `${x.name} · ${x.code}`),
+          options: (catalogs.payments?.methods ?? [])
+            .filter((x) => x.status === 'ACTIVO')
+            .map((x) => ({ value: String(x.code), label: `${x.name} · ${x.code}` })),
         },
         { key: 'from', label: 'Desde', type: 'datetime-local', required: true },
         { key: 'to', label: 'Hasta', type: 'datetime-local', required: true },
@@ -1347,7 +1363,32 @@ function EditorField({
         {field.label}
         {field.required && ' *'}
       </span>
-      {field.type === 'select' ? (
+      {field.type === 'select' && field.multiple ? (
+        <span className="block max-h-48 space-y-2 overflow-y-auto rounded-xl border p-3">
+          {field.options?.length ? (
+            field.options.map((option) => (
+              <span key={option.value} className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  aria-label={option.label}
+                  checked={Array.isArray(value) && value.includes(option.value)}
+                  onChange={(e) => {
+                    const selected = Array.isArray(value) ? value : [];
+                    onChange(
+                      e.target.checked
+                        ? [...selected, option.value]
+                        : selected.filter((v) => v !== option.value),
+                    );
+                  }}
+                />
+                {option.label}
+              </span>
+            ))
+          ) : (
+            <span className="text-sm text-slate-500">Sin opciones configuradas.</span>
+          )}
+        </span>
+      ) : field.type === 'select' ? (
         <select
           multiple={field.multiple}
           required={field.required}
@@ -1644,7 +1685,7 @@ function canManageMode(mode: OperationsMode, roles: string[], permissions: strin
     sustentantes: 'INSCRIPCIONES_GESTIONAR',
     validaciones: 'INSCRIPCIONES_GESTIONAR',
     'estados-inscripcion': 'INSCRIPCIONES_GESTIONAR',
-    documentos: 'INSCRIPCIONES_GESTIONAR',
+    documentos: 'MONOGRAFICO_VALIDAR',
     'cuentas-bancarias': 'PAGOS_GESTIONAR',
     'metodos-pago': 'PAGOS_GESTIONAR',
     pagos: 'PAGOS_GESTIONAR',
@@ -2059,4 +2100,67 @@ function editorPayload(mode: OperationsMode, payload: Record<string, unknown>) {
     else delete result.customArea;
   }
   return result;
+}
+
+function OfferEditorFields({
+  fields,
+  form,
+  onChange,
+}: {
+  fields: Field[];
+  form: Record<string, string | string[]>;
+  onChange: (key: string, value: string | string[]) => void;
+}) {
+  const render = (keys: string[]) =>
+    fields
+      .filter((field) => keys.includes(field.key))
+      .map((field) => (
+        <EditorField
+          key={field.key}
+          field={field}
+          value={form[field.key] ?? ''}
+          onChange={(value) => onChange(field.key, value)}
+        />
+      ));
+  return (
+    <div className="space-y-6 sm:col-span-2">
+      <p className="rounded-xl bg-blue-50 p-3 text-sm text-blue-900">
+        El código se asigna automáticamente. Completa estos tres bloques para preparar la oferta.
+      </p>
+      <fieldset className="grid gap-4 sm:grid-cols-2">
+        <legend className="mb-3 font-bold">1. Datos del curso</legend>
+        {render([
+          'titulo',
+          'recintoCarreraId',
+          'modalidadId',
+          'teachingMode',
+          'periodoId',
+          'descripcion',
+        ])}
+      </fieldset>
+      <fieldset className="grid gap-4 sm:grid-cols-2">
+        <legend className="mb-3 font-bold">2. Inscripción y costo</legend>
+        {render(['fechaInicioInscripcion', 'fechaFinInscripcion', 'cupoTotal', 'monto'])}
+      </fieldset>
+      <fieldset>
+        <legend className="mb-3 font-bold">3. Publicación</legend>
+        {render(['estado'])}
+        <p className="mt-2 text-xs text-slate-500">
+          Guarda un borrador para revisarlo. Una oferta publicada se muestra al estudiante durante
+          sus fechas de inscripción.
+        </p>
+      </fieldset>
+      <details className="rounded-xl border p-4">
+        <summary className="cursor-pointer text-sm font-semibold">
+          Opciones adicionales (opcional)
+        </summary>
+        <p className="my-3 text-sm text-slate-600">
+          Las reglas académicas se aplican automáticamente según el plan de estudio. Añade áreas o
+          requisitos particulares solo cuando el curso los necesite. Los documentos se solicitan
+          desde el expediente.
+        </p>
+        <div className="grid gap-4 sm:grid-cols-2">{render(['areaIds', 'requisitoIds'])}</div>
+      </details>
+    </div>
+  );
 }

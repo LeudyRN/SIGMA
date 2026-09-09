@@ -1,3 +1,4 @@
+import { MonographWorkspace } from '@/components/monograph/monograph-workspace';
 import type { Metadata } from 'next';
 import { ArrowLeft, Boxes, CheckCircle2, Clock3, Database, FileCode2 } from 'lucide-react';
 import Link from 'next/link';
@@ -68,7 +69,8 @@ export default async function ModulePlanningPage({ params }: ModulePageProps) {
   if (academicMode) return <AcademicStructurePanel mode={academicMode} />;
   if (item.slug === 'ofertas') return <RoleAwareProcessPanel mode="offers" />;
   if (item.slug === 'inscripciones') return <RoleAwareProcessPanel mode="enrollments" />;
-  if (item.slug === 'pagos') return <RoleAwareProcessPanel mode="payments" />;
+  if (item.slug === 'pagos') return <MonographWorkspace paymentsOnly />;
+  if (item.slug === 'monograficos') return <MonographWorkspace />;
   if (item.slug === 'facturas') return <RoleAwareProcessPanel mode="invoices" />;
   const operationsModes = new Set<OperationsMode>([
     'modalidades',

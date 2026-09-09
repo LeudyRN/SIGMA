@@ -1,5 +1,6 @@
 import {
   Body,
+  GoneException,
   Controller,
   Delete,
   Get,
@@ -83,7 +84,12 @@ export class PaymentsController {
     @Body() dto: CreateTransferDto,
     @UploadedFile() file?: UploadedProof,
   ) {
-    return this.service.createTransfer(user.id, dto, file);
+    void user;
+    void dto;
+    void file;
+    throw new GoneException(
+      'El flujo actual utiliza pagos simulados desde Pagos; no requiere comprobantes bancarios.',
+    );
   }
   @Patch(':id/review') @Permissions('PAGOS_GESTIONAR') review(
     @CurrentUser() user: AuthenticatedUser,

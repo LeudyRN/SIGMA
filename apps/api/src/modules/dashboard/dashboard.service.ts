@@ -1,3 +1,4 @@
+import type { Prisma } from '../../generated/prisma/client';
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import type { AuthenticatedUser } from '../auth/interfaces/jwt-payload.interface';
@@ -14,6 +15,18 @@ export class DashboardService {
 
   async getSummary(user: AuthenticatedUser): Promise<DashboardSummary> {
     const now = new Date();
+    if (
+      user.roles.some((role) =>
+        [
+          'ENCARGADO',
+          'SECRETARIA',
+          'OFICINISTA',
+          'CAJA',
+          'COORDINADOR_MONOGRAFICO',
+        ].includes(role),
+      )
+    )
+      return this.monographSummary(user, now);
     if (user.roles.includes('ESTUDIANTE'))
       return this.studentSummary(user, now);
     if (user.roles.includes('TESORERIA')) return this.treasurySummary(now);
@@ -69,6 +82,68 @@ export class DashboardService {
           label: 'Pagos aprobados',
           value: approvedPayments,
           detail: `${activeSessions} sesiones activas`,
+        },
+      ],
+    };
+  }
+
+  private async monographSummary(
+    user: AuthenticatedUser,
+    now: Date,
+  ): Promise<DashboardSummary> {
+    const teacher =
+      user.roles.includes('COORDINADOR_MONOGRAFICO') &&
+      !user.roles.some((r) =>
+        ['ENCARGADO', 'SECRETARIA', 'OFICINISTA', 'CAJA', 'ADMIN'].includes(r),
+      );
+    const where: Prisma.inscripcionesWhereInput = teacher
+      ? { ofertas: { coordinador_id: BigInt(user.id) } }
+      : {};
+    const [enrollments, waiting, debt, paid] = await Promise.all([
+      this.prisma.inscripciones.count({ where }),
+      this.prisma.inscripciones.count({
+        where: {
+          ...where,
+          validado_at: null,
+          fecha_cancelacion: null,
+          pagos: { none: { estado: 'APROBADO' } },
+        },
+      }),
+      this.prisma.inscripciones.count({
+        where: {
+          ...where,
+          deuda_abierta_at: { not: null },
+          fecha_cancelacion: null,
+          pagos: { none: { estado: 'APROBADO' } },
+        },
+      }),
+      this.prisma.inscripciones.count({
+        where: { ...where, pagos: { some: { estado: 'APROBADO' } } },
+      }),
+    ]);
+    return {
+      audience: user.roles[0] ?? 'UCOTESIS',
+      generatedAt: now.toISOString(),
+      metrics: [
+        {
+          label: teacher ? 'Inscripciones de mis cursos' : 'Expedientes',
+          value: enrollments,
+          detail: 'Seguimiento de monográficos',
+        },
+        {
+          label: 'Por revisar',
+          value: waiting,
+          detail: 'Recepción y validación de Secretaría',
+        },
+        {
+          label: 'Deudas activas',
+          value: debt,
+          detail: 'Pendientes del canal elegido',
+        },
+        {
+          label: 'Inscripciones saldadas',
+          value: paid,
+          detail: 'Incluye pagos simulados identificados en el informe',
         },
       ],
     };

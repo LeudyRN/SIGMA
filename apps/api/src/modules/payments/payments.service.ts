@@ -551,6 +551,7 @@ export class PaymentsService {
       ),
     );
     const pdf = await this.pdf.render({
+      simulated: row.pagos.es_simulado,
       number: row.numero_factura,
       receipt: row.numero_recibo,
       campus: row.recinto_nombre,
@@ -575,6 +576,7 @@ export class PaymentsService {
     const row = await this.prisma.facturas.findFirst({
       where: { qr_token: token, qr_hash: hash },
       select: {
+        pagos: { select: { es_simulado: true } },
         numero_factura: true,
         numero_recibo: true,
         matricula: true,
@@ -589,6 +591,8 @@ export class PaymentsService {
     if (!row) throw new NotFoundException('Factura no válida.');
     return {
       valid: !row.anulada_at,
+      simulated: row.pagos.es_simulado,
+      notice: row.pagos.es_simulado ? 'SIMULACIÓN SIN VALIDEZ FISCAL' : null,
       invoice: row.numero_factura,
       receipt: row.numero_recibo,
       registration: row.matricula,
@@ -668,7 +672,15 @@ export class PaymentsService {
       );
     const provider = dto.provider.trim().toUpperCase();
     const method = await this.prisma.metodos_pago.findFirst({
-      where: { codigo: provider, estado: 'ACTIVO' },
+      where: {
+        estado: 'ACTIVO',
+        OR: [
+          { codigo: provider },
+          ...(/^\d+$/.test(provider)
+            ? [{ id_metodo_pago: BigInt(provider) }]
+            : []),
+        ],
+      },
       select: { id_metodo_pago: true, codigo: true },
     });
     if (!method)
@@ -869,7 +881,14 @@ function validateProof(file?: UploadedProof): asserts file is UploadedProof {
 }
 function assertPaymentAccess(user: AuthenticatedUser, ownerIds: bigint[]) {
   const staff = user.roles.some((x) =>
-    ['ADMIN', 'TESORERIA', 'COORDINADOR'].includes(x),
+    [
+      'ADMIN',
+      'TESORERIA',
+      'COORDINADOR',
+      'SECRETARIA',
+      'ENCARGADO',
+      'CAJA',
+    ].includes(x),
   );
   if (!staff && !ownerIds.some((x) => x.toString() === user.id))
     throw new ForbiddenException('No puedes consultar este comprobante.');

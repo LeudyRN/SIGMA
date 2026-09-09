@@ -382,3 +382,39 @@ Consulte [Arquitectura](docs/architecture.md) y [Base de datos](docs/database.md
 ### Consulta de auditoría
 
 Auditoría ofrece paginación en el servidor y filtros por acción, módulo, búsqueda y rango de fechas (hora de República Dominicana). Los eventos nuevos identifican la ruta, el actor autenticado, el registro afectado y el resultado de la operación; las operaciones de autenticación no guardan credenciales ni el cuerpo de la solicitud. Los datos históricos incompletos permanecen intactos y se muestran como no registrados. La captura registra operaciones de escritura que alcanzan el interceptor; no representa un historial de lecturas ni de solicitudes rechazadas antes de ejecutar el controlador.
+
+## Flujo UCOTESIS revisado (septiembre de 2026)
+
+La referencia funcional es `Propuesta_SIGMA_Monografico_UCOTESIS.pdf`. La petición del proyecto prevalece sobre su propuesta de pasarela bancaria: todos los pagos nuevos son **simulaciones sin movimiento de dinero**. No se solicitan tarjetas, cuentas ni comprobantes. Se conservan los pagos y recibos históricos.
+
+- **Oficinista:** recibe el expediente, solicita y archiva documentos recibidos.
+- **Secretaría:** revisa los documentos y la elegibilidad, valida el expediente y utiliza «Crear pago · abrir deuda». Organiza grupos, presupuestos y plantillas; registra la remisión de notas a Dirección.
+- **Estudiante:** confirma su contacto, consulta ofertas compatibles, solicita inscripción y sigue su expediente. Después de abrirse la deuda elige Caja presencial o pago virtual.
+- **Caja local:** busca la matrícula y ejecuta el cobro presencial simulado.
+- **Tesorería central:** consulta ingresos virtuales; una aprobación virtual deja conciliación simulada automática y trazabilidad transaccional.
+- **Coordinador de monográfico:** docente asignado a una oferta, registra progreso y calificaciones de sus estudiantes pagados. Después de remitidas, las notas quedan cerradas.
+- **Encargado/a:** organiza la oferta y consulta los informes consolidados para Subdirección Académica.
+
+La nueva pantalla **Gestión de monográficos** contiene expedientes, grupos y plantillas, informes y política académica por plan. **Deudas y pagos** muestra el simulador y los recibos. El formulario de ofertas separa datos del curso, inscripción/costo y publicación; los requisitos particulares quedan en opciones adicionales. La modalidad de enseñanza sigue siendo presencial, virtual o semipresencial, y el tipo de trabajo conserva tesis, monográfico y trabajo final.
+
+### Instalación y datos existentes
+
+Ejecutar `pnpm prisma:deploy` y `pnpm prisma:generate` antes de iniciar API/web. La migración `20260908120000_ucotesis_flujo_real` es aditiva; no elimina datos ni cambia las asignaciones actuales de usuarios. Crea los roles `ENCARGADO`, `SECRETARIA`, `OFICINISTA`, `CAJA` y `COORDINADOR_MONOGRAFICO`. Asígnalos en Usuarios según la función real. El rol anterior `COORDINADOR` mantiene compatibilidad administrativa; el nuevo coordinador de curso es distinto. Las nuevas capacidades se incorporan a DOCENTE, ESTUDIANTE y TESORERIA. Actualizar la sesión para refrescar el menú.
+
+Las solicitudes nuevas empiezan en VALIDANDO. Las solicitudes antiguas impagadas requieren recepción y revisión antes de abrir deuda. Los pagos aprobados históricos conservan su estado y recibo. Los endpoints antiguos de crear transferencias e intenciones responden 410 para evitar saltarse el flujo; las consultas históricas siguen disponibles.
+
+### Elegibilidad, contacto y remisión
+
+Cada plan tiene límites de materias y créditos pendientes, ambos en cero inicialmente, y un semestre mínimo para excepciones. Deben cumplirse ambos límites y todas las materias pendientes deben tener semestre conocido dentro del rango permitido. Los créditos optativos pendientes siguen bloqueando. No se inventa un umbral especial para Psicología. Las asignaturas terminales de grado mantienen el tratamiento previo del motor académico.
+
+El contacto exige formato internacional y confirmación del propio usuario; esta confirmación no verifica titularidad mediante SMS. El enlace de WhatsApp se configura por curso y se muestra al estudiante tras el pago. SIGMA no envía mensajes externos. Las plantillas y presupuestos se exportan a CSV y la remisión se registra internamente para su entrega por el canal institucional; no se envía automáticamente a Dirección.
+
+Las operaciones de deuda, pagos simulados, conciliación virtual, notas y remisión guardan auditoría dentro de la misma transacción. El cobro usa control de versión e idempotencia, conserva intentos rechazados y admite reintento. Un recibo con prefijo SIM es de demostración y no tiene validez fiscal. Los informes distinguen ingresos simulados por canal de pagos históricos.
+
+### Verificación del flujo
+
+`pnpm --filter @sigma/api exec tsx scripts/verify-monograph.ts` ejecuta la elegibilidad, recepción documental, revisión, deuda, ambos canales, rechazo/reintento, idempotencia, recibos, grupo, notas y remisión contra MySQL. Todos los datos de prueba se revierten en una única transacción; los recibos de muestra quedan en `.tmp/verification`. Requiere una base migrada con al menos un recinto/carrera y período.
+
+Cuando cambia un documento antes de abrir la deuda, se invalida la revisión previa. Durante una deuda activa, el expediente queda congelado para el cobro; después del pago se pueden archivar documentos finales. Las actualizaciones documentales y el control de versión son transaccionales.
+
+El resumen general y los reportes comparten `/dashboard/insights`, con alcance por usuario/rol, rangos de 7/30/90 días o personalizados (máximo 366), tendencias diarias, comparación de solicitudes con el período anterior, usuarios con actividad, cola de pendientes actuales y exportación CSV. Los eventos auditados no se presentan como consumo total de API/DB. Las fechas se agrupan con el huso horario de Santo Domingo. La conciliación acepta código de método y, por compatibilidad, ID; el formulario envía el código y ofrece únicamente métodos activos.

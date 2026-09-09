@@ -255,6 +255,7 @@ model estudiante_carreras {
 }
 
 model estudiantes {
+  notas_monografico       notas_monografico[]
   id_estudiante           BigInt                    @id @default(autoincrement()) @db.UnsignedBigInt
   id_usuario              BigInt                    @unique(map: "uq_estudiantes_usuario") @db.UnsignedBigInt
   matricula               String                    @unique(map: "uq_estudiantes_matricula") @db.VarChar(30)
@@ -378,6 +379,14 @@ model solicitudes_documentos {
 }
 
 model inscripciones {
+  recibido_at                   DateTime?                       @db.DateTime(0)
+  recibido_por                  BigInt?                         @db.UnsignedBigInt
+  validado_at                   DateTime?                       @db.DateTime(0)
+  validado_por                  BigInt?                         @db.UnsignedBigInt
+  deuda_abierta_at              DateTime?                       @db.DateTime(0)
+  deuda_abierta_por             BigInt?                         @db.UnsignedBigInt
+  canal_pago                    String?                         @db.VarChar(20)
+  notas_monografico             notas_monografico[]
   solicitudes_documentos        solicitudes_documentos[]
   id_inscripcion                BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
   codigo                        String                          @unique(map: "uq_inscripciones_codigo") @db.VarChar(60)
@@ -477,6 +486,13 @@ enum modalidad_ensenanza {
 }
 
 model ofertas {
+  coordinador_id           BigInt?              @db.UnsignedBigInt
+  coordinador              usuarios?            @relation("oferta_coordinador", fields: [coordinador_id], references: [id_usuario], onDelete: NoAction)
+  grupo_whatsapp           String?              @db.VarChar(300)
+  presupuesto_docencia     Decimal              @default(0) @db.Decimal(12, 2)
+  presupuesto_materiales   Decimal              @default(0) @db.Decimal(12, 2)
+  notas_remitidas_at       DateTime?            @db.DateTime(0)
+  notas_remitidas_por      BigInt?              @db.UnsignedBigInt
   modalidad_ensenanza      modalidad_ensenanza?
   id_oferta                BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
   codigo                   String               @unique(map: "uq_ofertas_codigo") @db.VarChar(50)
@@ -504,6 +520,7 @@ model ofertas {
   recinto_carreras         recinto_carreras     @relation(fields: [id_recinto_carrera], references: [id_recinto_carrera], map: "fk_ofertas_rc")
 
   @@unique([id_recinto_carrera, id_modalidad, id_periodo, codigo], map: "uq_oferta_contexto")
+  @@index([coordinador_id], map: "ofertas_coordinador_id_fkey")
   @@index([created_by], map: "fk_ofertas_created_by")
   @@index([id_modalidad], map: "fk_ofertas_modalidad")
   @@index([id_periodo], map: "fk_ofertas_periodo")
@@ -513,6 +530,8 @@ model ofertas {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model pagos {
+  es_simulado                Boolean                     @default(false)
+  canal                      String?                     @db.VarChar(20)
   id_pago                    BigInt                      @id @default(autoincrement()) @db.UnsignedBigInt
   id_inscripcion             BigInt                      @db.UnsignedBigInt
   id_metodo_pago             BigInt                      @db.UnsignedBigInt
@@ -621,16 +640,19 @@ enum asignatura_relaciones_operador {
 }
 
 model planes_estudio {
-  id_plan_estudio  BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
-  id_carrera       BigInt                @db.UnsignedBigInt
-  codigo           String                @unique(map: "uq_planes_codigo") @db.VarChar(50)
-  nombre           String                @db.VarChar(150)
-  anio_inicio      Int                   @db.Year
-  anio_fin         Int?                  @db.Year
-  creditos_totales Decimal?              @db.Decimal(7, 2)
-  estado           planes_estudio_estado @default(ACTIVO)
-  created_at       DateTime              @default(now()) @db.Timestamp(0)
-  updated_at       DateTime              @default(now()) @db.Timestamp(0)
+  max_asignaturas_pendientes Int                   @default(0) @db.UnsignedSmallInt
+  max_creditos_pendientes    Int                   @default(0) @db.UnsignedSmallInt
+  desde_semestre             Int                   @default(1) @db.UnsignedTinyInt
+  id_plan_estudio            BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  id_carrera                 BigInt                @db.UnsignedBigInt
+  codigo                     String                @unique(map: "uq_planes_codigo") @db.VarChar(50)
+  nombre                     String                @db.VarChar(150)
+  anio_inicio                Int                   @db.Year
+  anio_fin                   Int?                  @db.Year
+  creditos_totales           Decimal?              @db.Decimal(7, 2)
+  estado                     planes_estudio_estado @default(ACTIVO)
+  created_at                 DateTime              @default(now()) @db.Timestamp(0)
+  updated_at                 DateTime              @default(now()) @db.Timestamp(0)
 
   carreras                 carreras                   @relation(fields: [id_carrera], references: [id_carrera], map: "fk_planes_carrera")
   estudiante_carreras      estudiante_carreras[]
@@ -826,6 +848,8 @@ model usuario_roles {
 }
 
 model usuarios {
+  ofertas_coordinadas                                ofertas[]                       @relation("oferta_coordinador")
+  whatsapp_confirmado_at                             DateTime?                       @db.DateTime(0)
   solicitudes_documentos                             solicitudes_documentos[]
   id_usuario                                         BigInt                          @id @default(autoincrement()) @db.UnsignedBigInt
   uuid                                               String                          @unique(map: "uq_usuarios_uuid") @db.Char(36)
@@ -1103,4 +1127,19 @@ enum ofertas_estado {
   PUBLICADA
   CERRADA
   CANCELADA
+}
+
+model notas_monografico {
+  id_nota        BigInt        @id @default(autoincrement()) @db.UnsignedBigInt
+  id_inscripcion BigInt        @db.UnsignedBigInt
+  id_estudiante  BigInt        @db.UnsignedBigInt
+  nota           Decimal       @db.Decimal(5, 2)
+  observacion    String?       @db.VarChar(1000)
+  registrado_por BigInt        @db.UnsignedBigInt
+  updated_at     DateTime      @default(now()) @db.DateTime(0)
+  inscripciones  inscripciones @relation(fields: [id_inscripcion], references: [id_inscripcion], onDelete: NoAction)
+  estudiantes    estudiantes   @relation(fields: [id_estudiante], references: [id_estudiante], onDelete: NoAction)
+
+  @@unique([id_inscripcion, id_estudiante])
+  @@index([id_estudiante], map: "notas_monografico_id_estudiante_fkey")
 }

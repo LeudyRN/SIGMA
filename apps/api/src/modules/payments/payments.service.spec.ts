@@ -240,3 +240,48 @@ describe('PaymentsService', () => {
     });
   });
 });
+
+it('resolves an active reconciliation method by ID from older clients', async () => {
+  const findFirst = jest
+    .fn()
+    .mockResolvedValue({ id_metodo_pago: 4n, codigo: 'SIMULACION' });
+  const prisma = {
+    metodos_pago: { findFirst },
+    pagos: {
+      findMany: jest.fn(() =>
+        Promise.resolve([
+          {
+            id_pago: 1n,
+            monto: 10000,
+            transacciones_pago: [{ id_transaccion: 1n }],
+          },
+        ]),
+      ),
+    },
+    conciliaciones_pago: {
+      create: jest
+        .fn()
+        .mockResolvedValue({ id_conciliacion: 1n, codigo: 'CON-1' }),
+    },
+  };
+  const service = new PaymentsService(
+    prisma as unknown as PrismaService,
+    {} as NotificationsService,
+    {} as InvoicePdfService,
+  );
+  await expect(
+    service.createReconciliation('1', {
+      provider: '4',
+      from: '2026-09-01T00:00:00Z',
+      to: '2026-09-30T23:59:59Z',
+    }),
+  ).resolves.toEqual({ id: '1', code: 'CON-1' });
+  expect(findFirst).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: {
+        estado: 'ACTIVO',
+        OR: [{ codigo: '4' }, { id_metodo_pago: 4n }],
+      },
+    }),
+  );
+});

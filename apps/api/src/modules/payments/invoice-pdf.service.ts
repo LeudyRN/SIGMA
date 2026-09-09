@@ -3,6 +3,7 @@ import PDFDocument from 'pdfkit';
 import QRCode from 'qrcode';
 
 export interface InvoicePdfData {
+  simulated?: boolean;
   number: string;
   receipt: string;
   campus: string;
@@ -58,17 +59,25 @@ export class InvoicePdfService {
       .fillColor(blue)
       .font('Helvetica-Bold')
       .fontSize(9)
-      .text('PAGO APROBADO', 438, 48, { width: 126, align: 'center' });
+      .text(data.simulated ? 'SIMULACIÓN' : 'PAGO APROBADO', 438, 48, {
+        width: 126,
+        align: 'center',
+      });
 
     document
       .fillColor(navy)
       .font('Helvetica-Bold')
       .fontSize(data.number.length > 24 ? 17 : 21)
-      .text(`Factura ${data.number}`, 48, 142, {
-        width: contentWidth,
-        height: 28,
-        ellipsis: true,
-      });
+      .text(
+        data.simulated ? 'Recibo de demostración' : `Factura ${data.number}`,
+        48,
+        142,
+        {
+          width: contentWidth,
+          height: 28,
+          ellipsis: true,
+        },
+      );
     document
       .font('Helvetica')
       .fontSize(9.5)
@@ -162,7 +171,9 @@ export class InvoicePdfService {
       .font('Helvetica')
       .fontSize(7.5)
       .text(
-        'Escanea el código para comprobar la autenticidad de esta factura.',
+        data.simulated
+          ? 'Consulta el registro de demostración. Sin validez fiscal.'
+          : 'Escanea el código para comprobar la autenticidad de esta factura.',
         verificationX + 16,
         detailsY + 172,
         {
@@ -178,7 +189,12 @@ export class InvoicePdfService {
       .fillColor('#1e40af')
       .font('Helvetica-Bold')
       .fontSize(9)
-      .text('TOTAL PAGADO', 68, totalY + 21, { characterSpacing: 0.8 });
+      .text(
+        data.simulated ? 'TOTAL SIMULADO' : 'TOTAL PAGADO',
+        68,
+        totalY + 21,
+        { characterSpacing: 0.8 },
+      );
     document
       .fillColor('#1d4ed8')
       .font('Helvetica-Bold')
@@ -194,7 +210,9 @@ export class InvoicePdfService {
       .font('Helvetica')
       .fontSize(8.5)
       .text(
-        'Este documento electrónico fue generado por SIGMA. La validación mediante el código QR confirma que el pago y la inscripción están registrados en UCOTESIS.',
+        data.simulated
+          ? 'SIMULACIÓN SIN VALIDEZ FISCAL. Este recibo es de demostración: no acredita dinero recibido por UCOTESIS ni una operación bancaria real.'
+          : 'Este documento electrónico fue generado por SIGMA. La validación mediante el código QR confirma que el pago y la inscripción están registrados en UCOTESIS.',
         80,
         575,
         { width: pageWidth - 160, align: 'center', lineGap: 3 },
