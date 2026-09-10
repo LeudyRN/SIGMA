@@ -1,6 +1,6 @@
 # SIGMA
 
-**Sistema de Gestión e Inscripción Virtual de Tesis / Monográficos**<br>
+**Sistema de Gestión e Inscripción Virtual de Monográficos**<br>
 **UCOTESIS - UASD Recinto Santiago**
 
 SIGMA centraliza y digitaliza la consulta de oferta académica, la validación de requisitos, la inscripción de sustentantes, los pagos, la facturación y el seguimiento administrativo de los procesos de grado de UCOTESIS.
