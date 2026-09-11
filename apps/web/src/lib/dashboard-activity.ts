@@ -9,6 +9,8 @@ export interface DashboardActivity {
   outcome?: ActivityOutcome;
 }
 const AREAS: Record<string, string> = {
+  coordination: 'Coordinación académica',
+  'coordinacion-academica': 'Coordinación académica',
   payments: 'Pagos',
   'payments/reconciliations': 'Conciliaciones de pagos',
   'payments/transfers': 'Comprobantes de pago',
@@ -64,6 +66,13 @@ const OBJECTS: Record<string, string> = {
   projects: 'un proyecto de grado',
 };
 const ACTIONS: Record<string, [string, string]> = {
+  REGISTRAR_DESIGNACION: [
+    'registró la designación de un coordinador por la Escuela',
+    'registrar la designación de un coordinador',
+  ],
+  ASIGNAR_PERSONAL: ['asignó personal académico a un grupo', 'asignar personal académico'],
+  REMOVER_PERSONAL: ['finalizó una asignación académica', 'finalizar una asignación académica'],
+  TRAMITAR_EXPEDIENTE_DOCENTE: ['actualizó un trámite docente', 'actualizar un trámite docente'],
   INICIAR_SESION: ['inició sesión', 'iniciar sesión'],
   CERRAR_SESION: ['cerró sesión', 'cerrar sesión'],
   RENOVAR_SESION: ['mantuvo su sesión activa', 'mantener su sesión activa'],

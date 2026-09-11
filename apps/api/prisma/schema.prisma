@@ -169,6 +169,10 @@ model comprobantes_transferencia {
 }
 
 model docentes {
+  perfil_academico         perfiles_academicos?
+  designaciones_academicas designaciones_academicas[]
+  solicitudes_docentes     solicitudes_docentes[]
+
   id_docente        BigInt              @id @default(autoincrement()) @db.UnsignedBigInt
   id_usuario        BigInt              @unique(map: "uq_docentes_usuario") @db.UnsignedBigInt
   codigo_docente    String              @unique(map: "uq_docentes_codigo") @db.VarChar(50)
@@ -208,6 +212,8 @@ model documentos_inscripcion {
 }
 
 model escuelas {
+  designaciones_academicas designaciones_academicas[]
+
   id_escuela  BigInt          @id @default(autoincrement()) @db.UnsignedBigInt
   id_facultad BigInt          @db.UnsignedBigInt
   codigo      String          @unique(map: "uq_escuelas_codigo") @db.VarChar(30)
@@ -486,6 +492,10 @@ enum modalidad_ensenanza {
 }
 
 model ofertas {
+  designacion_academica designaciones_academicas?
+  hitos_academicos      hitos_academicos[]
+  solicitudes_docentes  solicitudes_docentes[]
+
   coordinador_id           BigInt?              @db.UnsignedBigInt
   coordinador              usuarios?            @relation("oferta_coordinador", fields: [coordinador_id], references: [id_usuario], onDelete: NoAction)
   grupo_whatsapp           String?              @db.VarChar(300)
@@ -664,6 +674,10 @@ model planes_estudio {
 }
 
 model proyecto_docentes {
+  criterio_asignacion       String? @db.VarChar(1500)
+  complejidad               String? @db.VarChar(30)
+  disponibilidad_confirmada Boolean @default(false)
+
   id_proyecto           BigInt                   @db.UnsignedBigInt
   id_docente            BigInt                   @db.UnsignedBigInt
   id_tipo_participacion BigInt                   @db.UnsignedBigInt
@@ -683,6 +697,9 @@ model proyecto_docentes {
 }
 
 model proyectos_grado {
+  hitos_academicos    hitos_academicos[]
+  entregas_academicas entregas_academicas[]
+
   id_proyecto          BigInt                 @id @default(autoincrement()) @db.UnsignedBigInt
   id_inscripcion       BigInt                 @unique(map: "uq_proyectos_inscripcion") @db.UnsignedBigInt
   id_area              BigInt?                @db.UnsignedBigInt
@@ -848,6 +865,8 @@ model usuario_roles {
 }
 
 model usuarios {
+  alertas_academicas alertas_academicas[]
+
   ofertas_coordinadas                                ofertas[]                       @relation("oferta_coordinador")
   whatsapp_confirmado_at                             DateTime?                       @db.DateTime(0)
   solicitudes_documentos                             solicitudes_documentos[]
@@ -1142,4 +1161,114 @@ model notas_monografico {
 
   @@unique([id_inscripcion, id_estudiante])
   @@index([id_estudiante], map: "notas_monografico_id_estudiante_fkey")
+}
+
+model perfiles_academicos {
+  id_docente      BigInt   @id @db.UnsignedBigInt
+  especialidades  String   @db.VarChar(1000)
+  disponibilidad  String   @db.VarChar(1000)
+  max_grupos      Int      @default(5) @db.UnsignedSmallInt
+  max_estudiantes Int      @default(25) @db.UnsignedSmallInt
+  disponible      Boolean  @default(true)
+  updated_at      DateTime @updatedAt @db.DateTime(0)
+  docente         docentes @relation(fields: [id_docente], references: [id_docente])
+}
+
+model designaciones_academicas {
+  id_oferta      BigInt   @id @db.UnsignedBigInt
+  id_escuela     BigInt   @db.UnsignedBigInt
+  id_docente     BigInt   @db.UnsignedBigInt
+  fecha          DateTime @db.Date
+  referencia     String   @db.VarChar(200)
+  observacion    String?  @db.VarChar(1000)
+  registrado_por BigInt   @db.UnsignedBigInt
+  updated_at     DateTime @updatedAt @db.DateTime(0)
+  oferta         ofertas  @relation(fields: [id_oferta], references: [id_oferta])
+  escuela        escuelas @relation(fields: [id_escuela], references: [id_escuela])
+  docente        docentes @relation(fields: [id_docente], references: [id_docente])
+}
+
+model hitos_academicos {
+  id_hito       BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  id_oferta     BigInt                @db.UnsignedBigInt
+  id_proyecto   BigInt?               @db.UnsignedBigInt
+  titulo        String                @db.VarChar(200)
+  tipo          String                @db.VarChar(30)
+  fecha_limite  DateTime              @db.DateTime(0)
+  instrucciones String                @db.Text
+  estado        String                @default("PROGRAMADO") @db.VarChar(20)
+  version       Int                   @default(1)
+  creado_por    BigInt                @db.UnsignedBigInt
+  updated_at    DateTime              @updatedAt @db.DateTime(0)
+  oferta        ofertas               @relation(fields: [id_oferta], references: [id_oferta])
+  proyecto      proyectos_grado?      @relation(fields: [id_proyecto], references: [id_proyecto])
+  entregas      entregas_academicas[]
+  alertas       alertas_academicas[]
+
+  @@index([estado, fecha_limite])
+}
+
+model entregas_academicas {
+  id_entrega        BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  id_hito           BigInt           @db.UnsignedBigInt
+  id_proyecto       BigInt           @db.UnsignedBigInt
+  nombre_archivo    String           @db.VarChar(200)
+  contenido         Bytes            @db.LongBlob
+  hash_sha256       String           @db.Char(64)
+  entregado_por     BigInt           @db.UnsignedBigInt
+  created_at        DateTime         @default(now()) @db.DateTime(0)
+  estado            String           @default("PENDIENTE") @db.VarChar(30)
+  retroalimentacion String?          @db.Text
+  revisado_por      BigInt?          @db.UnsignedBigInt
+  revisado_at       DateTime?        @db.DateTime(0)
+  hito              hitos_academicos @relation(fields: [id_hito], references: [id_hito])
+  proyecto          proyectos_grado  @relation(fields: [id_proyecto], references: [id_proyecto])
+
+  @@index([id_proyecto, id_hito, created_at])
+}
+
+model solicitudes_docentes {
+  id_solicitud       BigInt                @id @default(autoincrement()) @db.UnsignedBigInt
+  id_oferta          BigInt                @db.UnsignedBigInt
+  id_docente         BigInt                @db.UnsignedBigInt
+  titulo             String                @db.VarChar(200)
+  finalidad          String                @db.VarChar(30)
+  instrucciones      String                @db.Text
+  estado_tramite     String                @default("PENDIENTE") @db.VarChar(30)
+  referencia_tramite String?               @db.VarChar(200)
+  solicitado_por     BigInt                @db.UnsignedBigInt
+  created_at         DateTime              @default(now()) @db.DateTime(0)
+  oferta             ofertas               @relation(fields: [id_oferta], references: [id_oferta])
+  docente            docentes              @relation(fields: [id_docente], references: [id_docente])
+  documentos         documentos_docentes[]
+}
+
+model documentos_docentes {
+  id_documento   BigInt               @id @default(autoincrement()) @db.UnsignedBigInt
+  id_solicitud   BigInt               @db.UnsignedBigInt
+  nombre_archivo String               @db.VarChar(200)
+  contenido      Bytes                @db.LongBlob
+  hash_sha256    String               @db.Char(64)
+  cargado_por    BigInt               @db.UnsignedBigInt
+  created_at     DateTime             @default(now()) @db.DateTime(0)
+  estado         String               @default("PENDIENTE") @db.VarChar(30)
+  observacion    String?              @db.Text
+  revisado_por   BigInt?              @db.UnsignedBigInt
+  revisado_at    DateTime?            @db.DateTime(0)
+  solicitud      solicitudes_docentes @relation(fields: [id_solicitud], references: [id_solicitud])
+
+  @@index([id_solicitud, created_at])
+}
+
+model alertas_academicas {
+  id_alerta  BigInt           @id @default(autoincrement()) @db.UnsignedBigInt
+  id_hito    BigInt           @db.UnsignedBigInt
+  version    Int
+  id_usuario BigInt           @db.UnsignedBigInt
+  tipo       String           @db.VarChar(20)
+  created_at DateTime         @default(now()) @db.DateTime(0)
+  hito       hitos_academicos @relation(fields: [id_hito], references: [id_hito])
+  usuario    usuarios         @relation(fields: [id_usuario], references: [id_usuario])
+
+  @@unique([id_hito, version, id_usuario, tipo])
 }

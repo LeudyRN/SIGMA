@@ -1,5 +1,6 @@
 import {
   Body,
+  GoneException,
   Controller,
   Delete,
   Get,
@@ -57,7 +58,12 @@ export class ProjectsController {
     @Param('id') id: string,
     @Body() dto: AssignTeacherDto,
   ) {
-    return this.service.assignTeacher(user.id, id, dto);
+    void user;
+    void id;
+    void dto;
+    throw new GoneException(
+      'Realiza la asignación en Coordinación académica para validar perfil, disponibilidad y carga.',
+    );
   }
   @Delete(':id/teachers/:teacherId/:typeId')
   @Permissions('PROYECTOS_GESTIONAR')

@@ -263,6 +263,12 @@ export const moduleCatalog: ModuleGroup[] = [
     description: 'Seguimiento académico posterior a la inscripción.',
     modules: [
       {
+        slug: 'coordinacion-academica',
+        label: 'Coordinación académica',
+        description: 'Cronograma, grupos, entregas y expedientes docentes.',
+        status: 'available',
+      },
+      {
         slug: 'monograficos',
         label: 'Gestión de monográficos',
         description: 'Expedientes, deudas, grupos, presupuestos y calificaciones.',
@@ -318,6 +324,7 @@ export function findModuleBySlug(slug: string) {
 }
 
 const MODULE_PERMISSIONS: Record<string, string[]> = {
+  'coordinacion-academica': ['COORDINACION_ACADEMICA_LEER'],
   monograficos: ['MONOGRAFICO_LEER'],
   resumen: ['GENERAL_RESUMEN_LEER'],
   reportes: ['GENERAL_REPORTES_LEER'],

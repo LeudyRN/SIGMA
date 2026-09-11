@@ -1,3 +1,5 @@
+import { CoordinationService } from '../src/modules/coordination/coordination.service';
+import { AcademicAlertsService } from '../src/modules/coordination/academic-alerts.service';
 import { InsightsService } from '../src/modules/dashboard/insights.service';
 import { PaymentsService } from '../src/modules/payments/payments.service';
 import { EnrollmentsService } from '../src/modules/enrollments/enrollments.service';
@@ -107,6 +109,16 @@ async function main() {
         const academics = new StudentsService(proxy, {} as AuthService);
         const process = new StudentProcessService(proxy, academics);
         const flow = new MonographService(proxy, academics);
+        const coordination = new CoordinationService(proxy);
+        const academicTeacher = await db.docentes.create({
+          data: {
+            id_usuario: teacher.id_usuario,
+            codigo_docente: `TEST-${suffix}`,
+          },
+        });
+        const school = await db.carreras.findUniqueOrThrow({
+          where: { id_carrera: campus.id_carrera },
+        });
         const documents = new EnrollmentsService(proxy, {
           create: () => Promise.resolve({}),
         } as unknown as NotificationsService);
@@ -132,6 +144,7 @@ async function main() {
           phone: '+18095551234',
           confirmed: true,
         });
+        let previousProjectId: string | undefined;
         for (const channel of ['VIRTUAL', 'CAJA'] as const) {
           const offer = await db.ofertas.create({
             data: {
@@ -230,6 +243,16 @@ async function main() {
             }),
             1,
           );
+          await coordination.designate(
+            { ...secretary, roles: ['ADMIN'] },
+            offer.id_oferta.toString(),
+            {
+              teacherId: academicTeacher.id_docente.toString(),
+              schoolId: school.id_escuela.toString(),
+              date: '2026-09-10',
+              reference: 'Oficio de la Escuela para verificación',
+            },
+          );
           await flow.group(secretary, offer.id_oferta.toString(), {
             coordinatorId: teacher.id_usuario.toString(),
             whatsappUrl: 'https://chat.whatsapp.com/TestGroup',
@@ -262,6 +285,228 @@ async function main() {
             'https://chat.whatsapp.com/TestGroup',
           );
           assert.equal(current.participants[0].grade, 95);
+          const project = await db.proyectos_grado.create({
+            data: {
+              id_inscripcion: BigInt(enrollmentId),
+              titulo: 'Proyecto académico de prueba',
+              area_personalizada: 'Software',
+              estado: 'EN_DESARROLLO',
+            },
+          });
+          const projectId = project.id_proyecto.toString();
+          const coordinator = {
+            ...lecturer,
+            roles: ['COORDINADOR_MONOGRAFICO'],
+          };
+          await coordination.profile(
+            coordinator,
+            academicTeacher.id_docente.toString(),
+            {
+              specialties: 'Software y sistemas',
+              availability: 'Martes 18:00 a 20:00',
+              maxGroups: 5,
+              maxStudents: 25,
+              available: true,
+            },
+          );
+          await coordination.assign(coordinator, projectId, {
+            teacherId: academicTeacher.id_docente.toString(),
+            participation: 'ASESOR',
+            complexity: 'MEDIA',
+            availabilityConfirmed: true,
+            rationale:
+              'Especialidad en software y disponibilidad confirmada para el grupo.',
+          });
+          if (channel === 'CAJA') {
+            await coordination.profile(
+              coordinator,
+              academicTeacher.id_docente.toString(),
+              {
+                specialties: 'Software y sistemas',
+                availability: 'Martes 18:00 a 20:00',
+                maxGroups: 1,
+                maxStudents: 25,
+                available: true,
+              },
+            );
+            await assert.rejects(
+              coordination.assign(coordinator, previousProjectId!, {
+                teacherId: academicTeacher.id_docente.toString(),
+                participation: 'JURADO',
+                complexity: 'MEDIA',
+                availabilityConfirmed: true,
+                rationale: 'Prueba de límite de carga de grupos.',
+              }),
+            );
+          }
+          await assert.rejects(
+            coordination.workspace(
+              { ...secretary, roles: ['DOCENTE'] },
+              offer.id_oferta.toString(),
+            ),
+          );
+          const activity = {
+            title: 'Primer avance',
+            type: 'AVANCE',
+            dueAt: new Date(Date.now() - 86400000).toISOString(),
+            instructions: 'Entregar planteamiento del problema',
+            status: 'PROGRAMADO',
+            projectId,
+          };
+          const milestone = await coordination.milestone(
+            coordinator,
+            offer.id_oferta.toString(),
+            activity,
+          );
+          await assert.rejects(
+            coordination.milestone(own, offer.id_oferta.toString(), activity),
+          );
+          await assert.rejects(
+            coordination.updateMilestone(coordinator, milestone.id, {
+              ...activity,
+              version: 99,
+            }),
+          );
+          const alerts = new AcademicAlertsService(proxy);
+          await alerts.tick();
+          const alertCount = await db.alertas_academicas.count({
+            where: { id_hito: BigInt(milestone.id) },
+          });
+          assert.ok(alertCount >= 2);
+          await alerts.tick();
+          assert.equal(
+            await db.alertas_academicas.count({
+              where: { id_hito: BigInt(milestone.id) },
+            }),
+            alertCount,
+          );
+          const academicFile = {
+            originalname: 'avance.pdf',
+            mimetype: 'application/pdf',
+            buffer: Buffer.from('%PDF-1.4\n%%EOF'),
+            size: 14,
+          };
+          const first = await coordination.submit(
+            own,
+            projectId,
+            milestone.id,
+            academicFile,
+          );
+          await assert.rejects(
+            coordination.review(own, first.id, {
+              status: 'APROBADO',
+              feedback: 'Revisión propia bloqueada',
+            }),
+          );
+          await coordination.review(coordinator, first.id, {
+            status: 'CAMBIOS',
+            feedback: 'Completar la delimitación del problema.',
+          });
+          const second = await coordination.submit(
+            own,
+            projectId,
+            milestone.id,
+            academicFile,
+          );
+          await assert.rejects(
+            coordination.review(coordinator, first.id, {
+              status: 'APROBADO',
+              feedback: 'Versión anterior bloqueada',
+            }),
+          );
+          await coordination.review(coordinator, second.id, {
+            status: 'APROBADO',
+            feedback: 'Delimitación corregida y aprobada.',
+          });
+          await assert.rejects(
+            coordination.submit(own, projectId, milestone.id, academicFile),
+          );
+          const academicWorkspace = await coordination.workspace(
+            coordinator,
+            offer.id_oferta.toString(),
+          );
+          if (!('generatedAt' in academicWorkspace))
+            throw new Error('El curso de prueba debe estar disponible.');
+          assert.equal(
+            academicWorkspace.projects?.find((p) => p.id === projectId)
+              ?.progress.percent,
+            100,
+          );
+          assert.equal(
+            academicWorkspace.submissions?.filter(
+              (e) => e.projectId === projectId,
+            ).length,
+            2,
+          );
+          const requestTeacher = await coordination.request(
+            coordinator,
+            offer.id_oferta.toString(),
+            {
+              teacherId: academicTeacher.id_docente.toString(),
+              title: 'Expediente de contratación',
+              purpose: 'CONTRATACION',
+              instructions: 'Adjuntar constancia de contratación docente.',
+            },
+          );
+          await assert.rejects(
+            coordination.teacherFile(own, requestTeacher.id, academicFile),
+          );
+          const teacherDoc = await coordination.teacherFile(
+            coordinator,
+            requestTeacher.id,
+            academicFile,
+          );
+          const office = { ...secretary, roles: ['SECRETARIA'] };
+          await assert.rejects(
+            coordination.process(office, requestTeacher.id, {
+              status: 'ENVIADO',
+              reference: 'Oficio de prueba',
+            }),
+          );
+          await coordination.reviewTeacherFile(office, teacherDoc.id, {
+            status: 'APROBADO',
+            feedback: 'Expediente completo.',
+          });
+          await coordination.process(office, requestTeacher.id, {
+            status: 'ENVIADO',
+            reference: 'Oficio UCOTESIS de prueba',
+          });
+          await coordination.process(office, requestTeacher.id, {
+            status: 'COMPLETADO',
+            reference: 'Acuse de recibo de contratación',
+          });
+          await assert.rejects(
+            coordination.teacherFile(
+              coordinator,
+              requestTeacher.id,
+              academicFile,
+            ),
+          );
+          const assignment = await db.proyecto_docentes.findFirstOrThrow({
+            where: {
+              id_proyecto: project.id_proyecto,
+              id_docente: academicTeacher.id_docente,
+            },
+          });
+          await coordination.removeAssignment(
+            coordinator,
+            projectId,
+            academicTeacher.id_docente.toString(),
+            assignment.id_tipo_participacion.toString(),
+          );
+          assert.equal(
+            await db.proyecto_docentes.count({
+              where: { id_proyecto: project.id_proyecto, estado: 'ACTIVO' },
+            }),
+            0,
+          );
+          assert.equal(
+            await db.entregas_academicas.count({
+              where: { id_proyecto: project.id_proyecto },
+            }),
+            2,
+          );
+          previousProjectId = projectId;
           const method = await db.metodos_pago.findUniqueOrThrow({
             where: { codigo: 'SIMULACION' },
           });
@@ -323,7 +568,7 @@ async function main() {
   }
   assert.equal(verified, true);
   console.log(
-    'PASS: validación académica real, recepción, deuda, ambos canales, rechazo/reintento, idempotencia, recibos, grupo, notas, remisión y auditoría. Fixtures revertidos.',
+    'PASS: validación académica real, recepción, deuda, ambos canales, rechazo/reintento, idempotencia, recibos, grupo, notas, remisión, coordinación, cronograma, alertas sin duplicados, entregas versionadas, control de carga y expedientes docentes. Fixtures revertidos.',
   );
 }
 main().catch((e) => {

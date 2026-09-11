@@ -619,31 +619,19 @@ export class MonographService {
   }
   async group(user: AuthenticatedUser, offerId: string, dto: CourseGroupDto) {
     if (dto.coordinatorId) {
-      const teacher = await this.prisma.usuarios.count({
-        where: {
-          id_usuario: id(dto.coordinatorId),
-          estado: 'ACTIVO',
-          deleted_at: null,
-          usuario_roles_usuario_roles_id_usuarioTousuarios: {
-            some: {
-              roles: {
-                estado: 'ACTIVO',
-                codigo: { in: ['DOCENTE', 'COORDINADOR_MONOGRAFICO'] },
-              },
-            },
-          },
-        },
+      const current = await this.prisma.ofertas.findUnique({
+        where: { id_oferta: id(offerId) },
+        select: { coordinador_id: true },
       });
-      if (!teacher)
+      if (current?.coordinador_id !== id(dto.coordinatorId))
         throw new BadRequestException(
-          'Selecciona un coordinador de monográfico o docente activo.',
+          'Registra la designación recibida de la Escuela en Coordinación académica.',
         );
     }
     return this.prisma.$transaction(async (db) => {
       await db.ofertas.update({
         where: { id_oferta: id(offerId) },
         data: {
-          coordinador_id: dto.coordinatorId ? id(dto.coordinatorId) : null,
           grupo_whatsapp: dto.whatsappUrl || null,
           presupuesto_docencia: dto.teachingBudget,
           presupuesto_materiales: dto.materialsBudget,
