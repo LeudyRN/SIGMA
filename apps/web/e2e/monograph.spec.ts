@@ -390,3 +390,207 @@ test('dashboard and reports have distinct workflows, date filters and scoped exp
     ),
   ).toBe(true);
 });
+
+const coordinationFixture = (student = false) => ({
+  offers: [{ id: '1', title: 'Monográfico Informática', teachingMode: 'SEMIPRESENCIAL' }],
+  ownTeacherId: student ? null : '4',
+  course: {
+    id: '1',
+    title: 'Monográfico Informática',
+    schoolId: '2',
+    canPlan: !student,
+    canDesignate: !student,
+    canManageDocuments: !student,
+    designation: {
+      teacherId: '4',
+      teacher: 'Ana García',
+      school: 'Escuela de Informática',
+      date: '2026-09-10',
+      reference: 'Oficio ESC-2026',
+    },
+  },
+  projects: [
+    {
+      id: '7',
+      title: 'Sistema de biblioteca',
+      code: 'INS-7',
+      area: 'Software',
+      status: 'EN_DESARROLLO',
+      students: [{ name: 'María Pérez', registration: '100000001' }],
+      canSubmit: student,
+      canReview: !student,
+      teachers: [
+        {
+          id: '4',
+          name: 'Ana García',
+          role: 'Asesor',
+          rationale: 'Especialidad en software y horarios compatibles.',
+          complexity: 'MEDIA',
+        },
+      ],
+      progress: {
+        total: 1,
+        approved: 0,
+        percent: 0,
+        awaitingReview: 1,
+        overdue: 0,
+        changes: 0,
+        oldestReviewDays: 2,
+        averageResponseHours: null,
+      },
+    },
+  ],
+  milestones: [
+    {
+      id: '8',
+      projectId: null,
+      title: 'Primer avance',
+      type: 'AVANCE',
+      dueAt: '2026-09-18T22:00:00Z',
+      instructions: 'Entregar planteamiento y antecedentes.',
+      status: 'PROGRAMADO',
+      version: 1,
+    },
+  ],
+  submissions: [
+    {
+      id: '9',
+      projectId: '7',
+      milestoneId: '8',
+      filename: 'avance-1.pdf',
+      createdAt: '2026-09-10T18:00:00Z',
+      status: 'PENDIENTE',
+      feedback: null,
+      reviewedAt: null,
+    },
+  ],
+  teachers: student
+    ? []
+    : [
+        {
+          id: '4',
+          name: 'Ana García',
+          canEdit: true,
+          groups: 1,
+          students: 1,
+          profile: {
+            specialties: 'Software y bases de datos',
+            availability: 'Martes 18:00 a 20:00',
+            maxGroups: 5,
+            maxStudents: 25,
+            available: true,
+          },
+        },
+      ],
+  requests: student
+    ? []
+    : [
+        {
+          id: '10',
+          teacherId: '4',
+          teacher: 'Ana García',
+          title: 'Expediente de contratación',
+          purpose: 'CONTRATACION',
+          instructions: 'Adjuntar constancia docente.',
+          status: 'PENDIENTE',
+          reference: null,
+          canUpload: true,
+          files: [],
+        },
+      ],
+  generatedAt: '2026-09-10T20:00:00Z',
+});
+test('coordination plans milestones, reviews work and records assignment criteria', async ({
+  context,
+  page,
+}) => {
+  await setup(context, page, 'ADMIN', ['*']);
+  await page.route('**/api/coordination**', (r) =>
+    r.fulfill({ json: r.request().method() === 'GET' ? coordinationFixture() : { saved: true } }),
+  );
+  await page.goto('/app/coordinacion-academica');
+  await expect(
+    page.getByRole('heading', { name: 'Cumplimiento y respuesta por grupo' }),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Cronograma', exact: true }).click();
+  await page.getByText('Programar actividad', { exact: true }).click();
+  const form = page.locator('details[open]');
+  await form.getByLabel('Actividad', { exact: true }).fill('Defensa final');
+  await form.getByLabel('Tipo de actividad').selectOption('DEFENSA');
+  await form.getByLabel('Fecha y hora límite').fill('2026-09-25T18:00');
+  await form.getByLabel('Instrucciones o normativa').fill('Presentar el trabajo ante el jurado.');
+  const sent = page.waitForRequest('**/api/coordination/offers/1/milestones');
+  await form.getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await sent).postDataJSON()).toMatchObject({
+    type: 'DEFENSA',
+    dueAt: '2026-09-25T18:00:00-04:00',
+  });
+  await page.getByRole('button', { name: 'Trabajos y revisiones', exact: true }).click();
+  await page.getByText('Registrar revisión', { exact: true }).click();
+  await page.getByLabel('Retroalimentación').fill('Delimitar el alcance de la investigación.');
+  await page.getByRole('combobox', { name: /^Resultado/ }).selectOption('CAMBIOS');
+  const review = page.waitForRequest('**/api/coordination/submissions/9/review');
+  await page.locator('details[open]').getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await review).postDataJSON()).toMatchObject({
+    status: 'CAMBIOS',
+    feedback: 'Delimitar el alcance de la investigación.',
+  });
+  await page.getByRole('button', { name: 'Personal académico', exact: true }).click();
+  await page.getByText('Asignar docente al grupo', { exact: true }).click();
+  const assignment = page.locator('details[open]');
+  await assignment.getByRole('combobox', { name: /^Docente/ }).selectOption('4');
+  await assignment
+    .getByLabel('Justificación de la asignación')
+    .fill('Especialidad en software y disponibilidad confirmada con el grupo.');
+  await assignment.getByRole('checkbox').check();
+  const assigned = page.waitForRequest('**/api/coordination/projects/7/assignments');
+  await assignment.getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await assigned).postDataJSON()).toMatchObject({
+    teacherId: '4',
+    participation: 'ASESOR',
+    availabilityConfirmed: true,
+    complexity: 'BAJA',
+  });
+  await page.screenshot({
+    path: `test-results/coordination-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});
+test('student sees own academic deliverables without coordination controls', async ({
+  context,
+  page,
+}) => {
+  await setup(context, page, 'ESTUDIANTE', ['COORDINACION_ACADEMICA_LEER']);
+  await page.route('**/api/coordination**', (r) =>
+    r.fulfill({
+      json: r.request().method() === 'GET' ? coordinationFixture(true) : { saved: true },
+    }),
+  );
+  await page.goto('/app/coordinacion-academica');
+  await page.getByRole('button', { name: 'Cronograma', exact: true }).click();
+  await expect(page.getByText('Programar actividad', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Trabajos y revisiones', exact: true }).click();
+  await expect(page.getByText('Registrar revisión', { exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Expedientes docentes', exact: true })).toHaveCount(
+    0,
+  );
+  await page.getByText('Enviar nueva versión', { exact: true }).click();
+  await page.getByLabel('Archivo PDF (máximo 8 MB)').setInputFiles({
+    name: 'avance.pdf',
+    mimeType: 'application/pdf',
+    buffer: Buffer.from('%PDF-1.4\n%%EOF'),
+  });
+  const sent = page.waitForRequest('**/api/coordination/projects/7/milestones/8/submissions');
+  await page.locator('details[open]').getByRole('button', { name: 'Guardar', exact: true }).click();
+  expect((await sent).headers()['content-type']).toContain('multipart/form-data');
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    ),
+  ).toBe(true);
+});

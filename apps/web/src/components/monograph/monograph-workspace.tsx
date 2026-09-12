@@ -707,7 +707,6 @@ function GradeForm({
 function GroupCard({
   group,
   items,
-  coordinators,
   editable,
   disabled,
   save,
@@ -739,23 +738,22 @@ function GroupCard({
             e.preventDefault();
             const f = new FormData(e.currentTarget);
             save({
-              coordinatorId: f.get('coordinator') || undefined,
               whatsappUrl: f.get('whatsapp'),
               teachingBudget: Number(f.get('teaching')),
               materialsBudget: Number(f.get('materials')),
             });
           }}
         >
-          <Field label="Coordinador del monográfico">
-            <select name="coordinator" defaultValue={group.coordinatorId} className={fieldClass}>
-              <option value="">Sin asignar</option>
-              {coordinators.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
-          </Field>
+          <p className="text-sm leading-6 text-slate-500">
+            La designación del coordinador se registra con la referencia de la Escuela en{' '}
+            <Link
+              href="/app/coordinacion-academica"
+              className="font-semibold text-blue-700 underline"
+            >
+              Coordinación académica
+            </Link>
+            .
+          </p>
           <Field label="Invitación al grupo de WhatsApp">
             <input
               name="whatsapp"

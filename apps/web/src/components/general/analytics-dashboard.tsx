@@ -153,6 +153,7 @@ export function AnalyticsDashboard() {
             {[
               ['ofertas', 'Ofertas de cursos'],
               ['monograficos', 'Gestión de monográficos'],
+              ['coordinacion-academica', 'Seguimiento académico de grupos'],
               ['documentos', 'Documentos'],
               ['pagos', 'Deudas y pagos'],
               ['estudiantes', 'Expedientes estudiantiles'],
