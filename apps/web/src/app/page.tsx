@@ -110,7 +110,7 @@ export default function Home() {
             </div>
             <h1 className="max-w-3xl text-4xl leading-[1.08] font-bold tracking-tight sm:text-5xl lg:text-6xl">
               Sistema de Gestión e Inscripción Virtual de{' '}
-              <span className="text-blue-200">Tesis y Monográficos</span>
+              <span className="text-blue-200">Monográficos</span>
             </h1>
             <p className="mt-6 max-w-2xl text-base leading-7 text-blue-100 sm:text-lg sm:leading-8">
               Un proceso de grado más claro, accesible y conectado. Consulta requisitos, valida tu
