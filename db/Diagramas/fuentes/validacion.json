@@ -1,0 +1,81 @@
+{
+  "schemaMatchesMysql": true,
+  "allTablesCovered": true,
+  "allColumnsCovered": true,
+  "allForeignKeysCovered": true,
+  "diagrams": [
+    {
+      "sheet": "01-identidad-gobierno",
+      "nodes": 9,
+      "relations": 10,
+      "nodeOverlaps": 0,
+      "paper": "A1",
+      "scale": 1.188,
+      "minimumTextPt": 10.69
+    },
+    {
+      "sheet": "02-estructura-academica",
+      "nodes": 10,
+      "relations": 12,
+      "nodeOverlaps": 0,
+      "paper": "A2",
+      "scale": 0.907,
+      "minimumTextPt": 8.16
+    },
+    {
+      "sheet": "03-expediente-estudiantil",
+      "nodes": 7,
+      "relations": 6,
+      "nodeOverlaps": 0,
+      "paper": "A2",
+      "scale": 1.122,
+      "minimumTextPt": 10.1
+    },
+    {
+      "sheet": "04-oferta-ucotesis",
+      "nodes": 9,
+      "relations": 9,
+      "nodeOverlaps": 0,
+      "paper": "A2",
+      "scale": 1.052,
+      "minimumTextPt": 9.47
+    },
+    {
+      "sheet": "05-inscripcion-documentos",
+      "nodes": 11,
+      "relations": 17,
+      "nodeOverlaps": 0,
+      "paper": "A1",
+      "scale": 1.117,
+      "minimumTextPt": 10.06
+    },
+    {
+      "sheet": "06-pagos-conciliacion",
+      "nodes": 10,
+      "relations": 11,
+      "nodeOverlaps": 0,
+      "paper": "A1",
+      "scale": 0.998,
+      "minimumTextPt": 8.98
+    },
+    {
+      "sheet": "07-proyectos-evaluacion",
+      "nodes": 9,
+      "relations": 9,
+      "nodeOverlaps": 0,
+      "paper": "A2",
+      "scale": 1.025,
+      "minimumTextPt": 9.22
+    },
+    {
+      "sheet": "08-coordinacion-academica",
+      "nodes": 12,
+      "relations": 13,
+      "nodeOverlaps": 0,
+      "paper": "A2",
+      "scale": 0.923,
+      "minimumTextPt": 8.3
+    }
+  ],
+  "pdfPages": 9
+}
