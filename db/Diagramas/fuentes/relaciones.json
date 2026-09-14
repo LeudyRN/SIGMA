@@ -1,0 +1,1483 @@
+[
+  {
+    "id": "R01",
+    "child": "alertas_academicas",
+    "parent": "hitos_academicos",
+    "columns": [
+      "id_hito"
+    ],
+    "targets": [
+      "id_hito"
+    ],
+    "constraint": "alertas_academicas_id_hito_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R02",
+    "child": "alertas_academicas",
+    "parent": "usuarios",
+    "columns": [
+      "id_usuario"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "alertas_academicas_id_usuario_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R03",
+    "child": "asignatura_relaciones",
+    "parent": "asignaturas",
+    "columns": [
+      "id_asignatura"
+    ],
+    "targets": [
+      "id_asignatura"
+    ],
+    "constraint": "fk_ar_asignatura",
+    "delete": "CASCADE",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R04",
+    "child": "asignatura_relaciones",
+    "parent": "planes_estudio",
+    "columns": [
+      "id_plan_estudio"
+    ],
+    "targets": [
+      "id_plan_estudio"
+    ],
+    "constraint": "fk_ar_plan",
+    "delete": "CASCADE",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R05",
+    "child": "asignatura_relaciones",
+    "parent": "asignaturas",
+    "columns": [
+      "id_asignatura_relacionada"
+    ],
+    "targets": [
+      "id_asignatura"
+    ],
+    "constraint": "fk_ar_relacionada",
+    "delete": "CASCADE",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R06",
+    "child": "auditoria",
+    "parent": "usuarios",
+    "columns": [
+      "id_usuario"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_auditoria_usuario",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R07",
+    "child": "carreras",
+    "parent": "escuelas",
+    "columns": [
+      "id_escuela"
+    ],
+    "targets": [
+      "id_escuela"
+    ],
+    "constraint": "fk_carreras_escuela",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R08",
+    "child": "comprobantes_transferencia",
+    "parent": "pagos",
+    "columns": [
+      "id_pago"
+    ],
+    "targets": [
+      "id_pago"
+    ],
+    "constraint": "fk_comprobantes_transferencia_pago",
+    "delete": "CASCADE",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..1",
+    "identifying": false
+  },
+  {
+    "id": "R09",
+    "child": "comprobantes_transferencia",
+    "parent": "usuarios",
+    "columns": [
+      "revisado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_comprobantes_transferencia_revisor",
+    "delete": "SET NULL",
+    "update": "NO ACTION",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R10",
+    "child": "conciliacion_detalles",
+    "parent": "conciliaciones_pago",
+    "columns": [
+      "id_conciliacion"
+    ],
+    "targets": [
+      "id_conciliacion"
+    ],
+    "constraint": "fk_cd_conciliacion",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R11",
+    "child": "conciliacion_detalles",
+    "parent": "pagos",
+    "columns": [
+      "id_pago"
+    ],
+    "targets": [
+      "id_pago"
+    ],
+    "constraint": "fk_cd_pago",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R12",
+    "child": "conciliaciones_pago",
+    "parent": "usuarios",
+    "columns": [
+      "procesada_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_conciliaciones_usuario",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R13",
+    "child": "configuraciones",
+    "parent": "usuarios",
+    "columns": [
+      "updated_by"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_configuraciones_usuario",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R14",
+    "child": "cuentas_bancarias",
+    "parent": "usuarios",
+    "columns": [
+      "created_by"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_cuentas_bancarias_usuario",
+    "delete": "SET NULL",
+    "update": "NO ACTION",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R15",
+    "child": "designaciones_academicas",
+    "parent": "docentes",
+    "columns": [
+      "id_docente"
+    ],
+    "targets": [
+      "id_docente"
+    ],
+    "constraint": "designaciones_academicas_id_docente_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R16",
+    "child": "designaciones_academicas",
+    "parent": "escuelas",
+    "columns": [
+      "id_escuela"
+    ],
+    "targets": [
+      "id_escuela"
+    ],
+    "constraint": "designaciones_academicas_id_escuela_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R17",
+    "child": "designaciones_academicas",
+    "parent": "ofertas",
+    "columns": [
+      "id_oferta"
+    ],
+    "targets": [
+      "id_oferta"
+    ],
+    "constraint": "designaciones_academicas_id_oferta_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..1",
+    "identifying": true
+  },
+  {
+    "id": "R18",
+    "child": "docentes",
+    "parent": "usuarios",
+    "columns": [
+      "id_usuario"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_docentes_usuario",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..1",
+    "identifying": false
+  },
+  {
+    "id": "R19",
+    "child": "documentos_docentes",
+    "parent": "solicitudes_docentes",
+    "columns": [
+      "id_solicitud"
+    ],
+    "targets": [
+      "id_solicitud"
+    ],
+    "constraint": "documentos_docentes_id_solicitud_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R20",
+    "child": "documentos_inscripcion",
+    "parent": "solicitudes_documentos",
+    "columns": [
+      "id_solicitud"
+    ],
+    "targets": [
+      "id_solicitud"
+    ],
+    "constraint": "fk_di_solicitud",
+    "delete": "NO ACTION",
+    "update": "NO ACTION",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R21",
+    "child": "documentos_inscripcion",
+    "parent": "estudiantes",
+    "columns": [
+      "id_estudiante"
+    ],
+    "targets": [
+      "id_estudiante"
+    ],
+    "constraint": "fk_documentos_estudiante",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R22",
+    "child": "documentos_inscripcion",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion"
+    ],
+    "targets": [
+      "id_inscripcion"
+    ],
+    "constraint": "fk_documentos_inscripcion",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R23",
+    "child": "documentos_inscripcion",
+    "parent": "usuarios",
+    "columns": [
+      "validado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_documentos_validado_por",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R24",
+    "child": "entregas_academicas",
+    "parent": "hitos_academicos",
+    "columns": [
+      "id_hito"
+    ],
+    "targets": [
+      "id_hito"
+    ],
+    "constraint": "entregas_academicas_id_hito_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R25",
+    "child": "entregas_academicas",
+    "parent": "proyectos_grado",
+    "columns": [
+      "id_proyecto"
+    ],
+    "targets": [
+      "id_proyecto"
+    ],
+    "constraint": "entregas_academicas_id_proyecto_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R26",
+    "child": "escuelas",
+    "parent": "facultades",
+    "columns": [
+      "id_facultad"
+    ],
+    "targets": [
+      "id_facultad"
+    ],
+    "constraint": "fk_escuelas_facultad",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R27",
+    "child": "estudiante_carreras",
+    "parent": "estudiantes",
+    "columns": [
+      "id_estudiante"
+    ],
+    "targets": [
+      "id_estudiante"
+    ],
+    "constraint": "fk_ec_estudiante",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R28",
+    "child": "estudiante_carreras",
+    "parent": "planes_estudio",
+    "columns": [
+      "id_plan_estudio"
+    ],
+    "targets": [
+      "id_plan_estudio"
+    ],
+    "constraint": "fk_ec_plan",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R29",
+    "child": "estudiante_carreras",
+    "parent": "recinto_carreras",
+    "columns": [
+      "id_recinto_carrera"
+    ],
+    "targets": [
+      "id_recinto_carrera"
+    ],
+    "constraint": "fk_ec_recinto_carrera",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R30",
+    "child": "estudiantes",
+    "parent": "usuarios",
+    "columns": [
+      "id_usuario"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_estudiantes_usuario",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..1",
+    "identifying": false
+  },
+  {
+    "id": "R31",
+    "child": "facturas",
+    "parent": "pagos",
+    "columns": [
+      "id_pago"
+    ],
+    "targets": [
+      "id_pago"
+    ],
+    "constraint": "fk_facturas_pago",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..1",
+    "identifying": false
+  },
+  {
+    "id": "R32",
+    "child": "historial_academico",
+    "parent": "asignaturas",
+    "columns": [
+      "id_asignatura"
+    ],
+    "targets": [
+      "id_asignatura"
+    ],
+    "constraint": "fk_historial_asignatura",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R33",
+    "child": "historial_academico",
+    "parent": "estudiante_carreras",
+    "columns": [
+      "id_estudiante_carrera"
+    ],
+    "targets": [
+      "id_estudiante_carrera"
+    ],
+    "constraint": "fk_historial_ec",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R34",
+    "child": "historial_estados_inscripcion",
+    "parent": "estados_inscripcion",
+    "columns": [
+      "id_estado_anterior"
+    ],
+    "targets": [
+      "id_estado"
+    ],
+    "constraint": "fk_hei_estado_anterior",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R35",
+    "child": "historial_estados_inscripcion",
+    "parent": "estados_inscripcion",
+    "columns": [
+      "id_estado_nuevo"
+    ],
+    "targets": [
+      "id_estado"
+    ],
+    "constraint": "fk_hei_estado_nuevo",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R36",
+    "child": "historial_estados_inscripcion",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion"
+    ],
+    "targets": [
+      "id_inscripcion"
+    ],
+    "constraint": "fk_hei_inscripcion",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R37",
+    "child": "historial_estados_inscripcion",
+    "parent": "usuarios",
+    "columns": [
+      "cambiado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_hei_usuario",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R38",
+    "child": "hitos_academicos",
+    "parent": "ofertas",
+    "columns": [
+      "id_oferta"
+    ],
+    "targets": [
+      "id_oferta"
+    ],
+    "constraint": "hitos_academicos_id_oferta_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R39",
+    "child": "hitos_academicos",
+    "parent": "proyectos_grado",
+    "columns": [
+      "id_proyecto"
+    ],
+    "targets": [
+      "id_proyecto"
+    ],
+    "constraint": "hitos_academicos_id_proyecto_fkey",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R40",
+    "child": "inscripcion_estudiantes",
+    "parent": "estudiantes",
+    "columns": [
+      "id_estudiante"
+    ],
+    "targets": [
+      "id_estudiante"
+    ],
+    "constraint": "fk_ie_estudiante",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R41",
+    "child": "inscripcion_estudiantes",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion",
+      "id_oferta"
+    ],
+    "targets": [
+      "id_inscripcion",
+      "id_oferta"
+    ],
+    "constraint": "fk_ie_inscripcion_oferta",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R42",
+    "child": "inscripciones",
+    "parent": "estados_inscripcion",
+    "columns": [
+      "id_estado"
+    ],
+    "targets": [
+      "id_estado"
+    ],
+    "constraint": "fk_inscripciones_estado",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R43",
+    "child": "inscripciones",
+    "parent": "ofertas",
+    "columns": [
+      "id_oferta"
+    ],
+    "targets": [
+      "id_oferta"
+    ],
+    "constraint": "fk_inscripciones_oferta",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R44",
+    "child": "notas_monografico",
+    "parent": "estudiantes",
+    "columns": [
+      "id_estudiante"
+    ],
+    "targets": [
+      "id_estudiante"
+    ],
+    "constraint": "notas_monografico_id_estudiante_fkey",
+    "delete": "NO ACTION",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R45",
+    "child": "notas_monografico",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion"
+    ],
+    "targets": [
+      "id_inscripcion"
+    ],
+    "constraint": "notas_monografico_id_inscripcion_fkey",
+    "delete": "NO ACTION",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R46",
+    "child": "notificaciones",
+    "parent": "usuarios",
+    "columns": [
+      "id_usuario"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_notificaciones_usuario",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R47",
+    "child": "oferta_areas",
+    "parent": "areas_investigacion",
+    "columns": [
+      "id_area"
+    ],
+    "targets": [
+      "id_area"
+    ],
+    "constraint": "fk_oferta_areas_area",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R48",
+    "child": "oferta_areas",
+    "parent": "ofertas",
+    "columns": [
+      "id_oferta"
+    ],
+    "targets": [
+      "id_oferta"
+    ],
+    "constraint": "fk_oferta_areas_oferta",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R49",
+    "child": "oferta_requisitos",
+    "parent": "ofertas",
+    "columns": [
+      "id_oferta"
+    ],
+    "targets": [
+      "id_oferta"
+    ],
+    "constraint": "fk_or_oferta",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R50",
+    "child": "oferta_requisitos",
+    "parent": "requisitos",
+    "columns": [
+      "id_requisito"
+    ],
+    "targets": [
+      "id_requisito"
+    ],
+    "constraint": "fk_or_requisito",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R51",
+    "child": "ofertas",
+    "parent": "usuarios",
+    "columns": [
+      "created_by"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_ofertas_created_by",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R52",
+    "child": "ofertas",
+    "parent": "modalidades",
+    "columns": [
+      "id_modalidad"
+    ],
+    "targets": [
+      "id_modalidad"
+    ],
+    "constraint": "fk_ofertas_modalidad",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R53",
+    "child": "ofertas",
+    "parent": "periodos_academicos",
+    "columns": [
+      "id_periodo"
+    ],
+    "targets": [
+      "id_periodo"
+    ],
+    "constraint": "fk_ofertas_periodo",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R54",
+    "child": "ofertas",
+    "parent": "recinto_carreras",
+    "columns": [
+      "id_recinto_carrera"
+    ],
+    "targets": [
+      "id_recinto_carrera"
+    ],
+    "constraint": "fk_ofertas_rc",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R55",
+    "child": "ofertas",
+    "parent": "usuarios",
+    "columns": [
+      "coordinador_id"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "ofertas_coordinador_id_fkey",
+    "delete": "NO ACTION",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R56",
+    "child": "pagos",
+    "parent": "cuentas_bancarias",
+    "columns": [
+      "id_cuenta_bancaria"
+    ],
+    "targets": [
+      "id_cuenta_bancaria"
+    ],
+    "constraint": "fk_pagos_cuenta_bancaria",
+    "delete": "RESTRICT",
+    "update": "NO ACTION",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R57",
+    "child": "pagos",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion"
+    ],
+    "targets": [
+      "id_inscripcion"
+    ],
+    "constraint": "fk_pagos_inscripcion",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R58",
+    "child": "pagos",
+    "parent": "metodos_pago",
+    "columns": [
+      "id_metodo_pago"
+    ],
+    "targets": [
+      "id_metodo_pago"
+    ],
+    "constraint": "fk_pagos_metodo",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R59",
+    "child": "perfiles_academicos",
+    "parent": "docentes",
+    "columns": [
+      "id_docente"
+    ],
+    "targets": [
+      "id_docente"
+    ],
+    "constraint": "perfiles_academicos_id_docente_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..1",
+    "identifying": true
+  },
+  {
+    "id": "R60",
+    "child": "plan_estudio_asignaturas",
+    "parent": "asignaturas",
+    "columns": [
+      "id_asignatura"
+    ],
+    "targets": [
+      "id_asignatura"
+    ],
+    "constraint": "fk_pea_asignatura",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R61",
+    "child": "plan_estudio_asignaturas",
+    "parent": "planes_estudio",
+    "columns": [
+      "id_plan_estudio"
+    ],
+    "targets": [
+      "id_plan_estudio"
+    ],
+    "constraint": "fk_pea_plan",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R62",
+    "child": "planes_estudio",
+    "parent": "carreras",
+    "columns": [
+      "id_carrera"
+    ],
+    "targets": [
+      "id_carrera"
+    ],
+    "constraint": "fk_planes_carrera",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R63",
+    "child": "proyecto_docentes",
+    "parent": "usuarios",
+    "columns": [
+      "asignado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_pd_asignado_por",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R64",
+    "child": "proyecto_docentes",
+    "parent": "docentes",
+    "columns": [
+      "id_docente"
+    ],
+    "targets": [
+      "id_docente"
+    ],
+    "constraint": "fk_pd_docente",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R65",
+    "child": "proyecto_docentes",
+    "parent": "proyectos_grado",
+    "columns": [
+      "id_proyecto"
+    ],
+    "targets": [
+      "id_proyecto"
+    ],
+    "constraint": "fk_pd_proyecto",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R66",
+    "child": "proyecto_docentes",
+    "parent": "tipos_participacion",
+    "columns": [
+      "id_tipo_participacion"
+    ],
+    "targets": [
+      "id_tipo_participacion"
+    ],
+    "constraint": "fk_pd_tipo",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R67",
+    "child": "proyectos_grado",
+    "parent": "areas_investigacion",
+    "columns": [
+      "id_area"
+    ],
+    "targets": [
+      "id_area"
+    ],
+    "constraint": "fk_proyectos_area",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R68",
+    "child": "proyectos_grado",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion"
+    ],
+    "targets": [
+      "id_inscripcion"
+    ],
+    "constraint": "fk_proyectos_inscripcion",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..1",
+    "identifying": false
+  },
+  {
+    "id": "R69",
+    "child": "recinto_carrera_planes",
+    "parent": "planes_estudio",
+    "columns": [
+      "id_plan_estudio"
+    ],
+    "targets": [
+      "id_plan_estudio"
+    ],
+    "constraint": "fk_rcp_plan",
+    "delete": "CASCADE",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R70",
+    "child": "recinto_carrera_planes",
+    "parent": "recinto_carreras",
+    "columns": [
+      "id_recinto_carrera"
+    ],
+    "targets": [
+      "id_recinto_carrera"
+    ],
+    "constraint": "fk_rcp_recinto_carrera",
+    "delete": "CASCADE",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R71",
+    "child": "recinto_carreras",
+    "parent": "carreras",
+    "columns": [
+      "id_carrera"
+    ],
+    "targets": [
+      "id_carrera"
+    ],
+    "constraint": "fk_rc_carrera",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R72",
+    "child": "recinto_carreras",
+    "parent": "recintos",
+    "columns": [
+      "id_recinto"
+    ],
+    "targets": [
+      "id_recinto"
+    ],
+    "constraint": "fk_rc_recinto",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R73",
+    "child": "rol_permisos",
+    "parent": "usuarios",
+    "columns": [
+      "asignado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_rol_permisos_asignado_por",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R74",
+    "child": "rol_permisos",
+    "parent": "permisos",
+    "columns": [
+      "id_permiso"
+    ],
+    "targets": [
+      "id_permiso"
+    ],
+    "constraint": "fk_rol_permisos_permiso",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R75",
+    "child": "rol_permisos",
+    "parent": "roles",
+    "columns": [
+      "id_rol"
+    ],
+    "targets": [
+      "id_rol"
+    ],
+    "constraint": "fk_rol_permisos_rol",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R76",
+    "child": "sesiones",
+    "parent": "usuarios",
+    "columns": [
+      "id_usuario"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_sesiones_usuario",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R77",
+    "child": "solicitudes_docentes",
+    "parent": "docentes",
+    "columns": [
+      "id_docente"
+    ],
+    "targets": [
+      "id_docente"
+    ],
+    "constraint": "solicitudes_docentes_id_docente_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R78",
+    "child": "solicitudes_docentes",
+    "parent": "ofertas",
+    "columns": [
+      "id_oferta"
+    ],
+    "targets": [
+      "id_oferta"
+    ],
+    "constraint": "solicitudes_docentes_id_oferta_fkey",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R79",
+    "child": "solicitudes_documentos",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion"
+    ],
+    "targets": [
+      "id_inscripcion"
+    ],
+    "constraint": "fk_sd_inscripcion",
+    "delete": "NO ACTION",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R80",
+    "child": "solicitudes_documentos",
+    "parent": "usuarios",
+    "columns": [
+      "solicitado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_sd_usuario",
+    "delete": "NO ACTION",
+    "update": "NO ACTION",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R81",
+    "child": "transacciones_pago",
+    "parent": "pagos",
+    "columns": [
+      "id_pago"
+    ],
+    "targets": [
+      "id_pago"
+    ],
+    "constraint": "fk_tx_pago",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R82",
+    "child": "usuario_roles",
+    "parent": "usuarios",
+    "columns": [
+      "asignado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_usuario_roles_asignado_por",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R83",
+    "child": "usuario_roles",
+    "parent": "roles",
+    "columns": [
+      "id_rol"
+    ],
+    "targets": [
+      "id_rol"
+    ],
+    "constraint": "fk_usuario_roles_rol",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R84",
+    "child": "usuario_roles",
+    "parent": "usuarios",
+    "columns": [
+      "id_usuario"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_usuario_roles_usuario",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": true
+  },
+  {
+    "id": "R85",
+    "child": "validaciones_requisitos",
+    "parent": "inscripciones",
+    "columns": [
+      "id_inscripcion"
+    ],
+    "targets": [
+      "id_inscripcion"
+    ],
+    "constraint": "fk_validaciones_inscripcion",
+    "delete": "CASCADE",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R86",
+    "child": "validaciones_requisitos",
+    "parent": "requisitos",
+    "columns": [
+      "id_requisito"
+    ],
+    "targets": [
+      "id_requisito"
+    ],
+    "constraint": "fk_validaciones_requisito",
+    "delete": "RESTRICT",
+    "update": "CASCADE",
+    "parentCard": "1",
+    "childCard": "0..N",
+    "identifying": false
+  },
+  {
+    "id": "R87",
+    "child": "validaciones_requisitos",
+    "parent": "usuarios",
+    "columns": [
+      "validado_por"
+    ],
+    "targets": [
+      "id_usuario"
+    ],
+    "constraint": "fk_validaciones_usuario",
+    "delete": "SET NULL",
+    "update": "CASCADE",
+    "parentCard": "0..1",
+    "childCard": "0..N",
+    "identifying": false
+  }
+]
