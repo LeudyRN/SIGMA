@@ -153,10 +153,7 @@ async function main() {
           'MONOGRAFICO_LEER',
           'MONOGRAFICO_NOTAS',
         ]);
-        await flow.confirmContact(own, {
-          phone: '+18095551234',
-          confirmed: true,
-        });
+
         let previousProjectId: string | undefined;
         for (const channel of ['VIRTUAL', 'CAJA'] as const) {
           const offer = await db.ofertas.create({
@@ -180,6 +177,41 @@ async function main() {
           });
           assert.equal(registered.status, 'VALIDANDO');
           const enrollmentId = registered.id;
+          const participant = await db.inscripcion_estudiantes.findFirstOrThrow(
+            {
+              where: { id_inscripcion: BigInt(enrollmentId) },
+            },
+          );
+          if (channel === 'VIRTUAL') {
+            await flow.confirmParticipantContact(
+              auth(actor.id_usuario, ['MONOGRAFICO_VALIDAR']),
+              enrollmentId,
+              participant.id_estudiante.toString(),
+              {
+                phone: '+18095551234',
+                confirmed: true,
+              },
+            );
+            const confirmedContact = await db.usuarios.findUniqueOrThrow({
+              where: { id_usuario: learner.id_usuario },
+            });
+            assert.ok(confirmedContact.whatsapp_confirmado_at);
+            assert.equal(confirmedContact.telefono, '+18095551234');
+            assert.ok(
+              await db.auditoria.findFirst({
+                where: {
+                  id_usuario: actor.id_usuario,
+                  accion: 'CONFIRMAR_CONTACTO_SECRETARIA',
+                  entidad_id: enrollmentId,
+                },
+              }),
+            );
+          } else {
+            await flow.confirmContact(own, {
+              phone: '+18095551234',
+              confirmed: true,
+            });
+          }
           await assert.rejects(
             flow.openDebt(secretary, enrollmentId),
             /validar/,
@@ -248,6 +280,10 @@ async function main() {
           )!;
           assert.equal(approvedView.paid, true);
           assert.equal(approvedView.status, 'CONFIRMADA');
+          assert.equal(
+            (await documents.detail(enrollmentId)).statusFinal,
+            true,
+          );
           assert.ok(approvedView.payments[0].invoice);
           assert.equal(
             (await flow.simulate(payer, enrollmentId, approved)).id,

@@ -407,11 +407,13 @@ Ejecutar `pnpm prisma:deploy` y `pnpm prisma:generate` antes de iniciar API/web.
 
 Las solicitudes nuevas empiezan en VALIDANDO. Las solicitudes antiguas impagadas requieren recepción y revisión antes de abrir deuda. Los pagos aprobados históricos conservan su estado y recibo. Los endpoints antiguos de crear transferencias e intenciones responden 410 para evitar saltarse el flujo; las consultas históricas siguen disponibles.
 
+Las inscripciones confirmadas no necesitan otra aprobación manual. Los expedientes pagados que no conservan fechas de recepción, validación o apertura de deuda muestran «Sin fecha registrada», sin inventar fechas ni presentarlas como trámites pendientes. Secretaría puede usar «Continuar con grupo y notas» para abrir el grupo del expediente. El cambio manual de estado se oculta para inscripciones confirmadas, pagadas y estados finales.
+
 ### Elegibilidad, contacto y remisión
 
 Cada plan tiene límites de materias y créditos pendientes, ambos en cero inicialmente, y un semestre mínimo para excepciones. Deben cumplirse ambos límites y todas las materias pendientes deben tener semestre conocido dentro del rango permitido. Los créditos optativos pendientes siguen bloqueando. No se inventa un umbral especial para Psicología. Las asignaturas terminales de grado mantienen el tratamiento previo del motor académico.
 
-El contacto exige formato internacional y confirmación del propio usuario; esta confirmación no verifica titularidad mediante SMS. El enlace de WhatsApp se configura por curso y se muestra al estudiante tras el pago. SIGMA no envía mensajes externos. Las plantillas y presupuestos se exportan a CSV y la remisión se registra internamente para su entrega por el canal institucional; no se envía automáticamente a Dirección.
+El contacto exige formato internacional. Puede confirmarlo el estudiante desde su sesión o Secretaría, con `MONOGRAFICO_VALIDAR`, mediante «Confirmar contacto» en la ficha del participante y previa verificación con el estudiante. La operación registra al responsable, al participante y la inscripción en auditoría; no verifica titularidad mediante SMS. El enlace de WhatsApp se configura por curso y se muestra al estudiante tras el pago. SIGMA no envía mensajes externos. Las plantillas y presupuestos se exportan a CSV y la remisión se registra internamente para su entrega por el canal institucional; no se envía automáticamente a Dirección.
 
 Las operaciones de deuda, pagos simulados, conciliación virtual, notas y remisión guardan auditoría dentro de la misma transacción. El cobro usa control de versión e idempotencia, conserva intentos rechazados y admite reintento. Un recibo con prefijo SIM es de demostración y no tiene validez fiscal. Los informes distinguen ingresos simulados por canal de pagos históricos.
 

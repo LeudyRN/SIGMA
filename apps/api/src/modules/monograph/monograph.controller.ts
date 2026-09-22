@@ -44,6 +44,16 @@ export class MonographController {
   ) {
     return this.service.receive(user, id);
   }
+  @Patch('enrollments/:id/participants/:studentId/contact')
+  @Permissions('MONOGRAFICO_VALIDAR')
+  confirmParticipantContact(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('id') id: string,
+    @Param('studentId') studentId: string,
+    @Body() dto: ContactDto,
+  ) {
+    return this.service.confirmParticipantContact(user, id, studentId, dto);
+  }
   @Post('enrollments/:id/validate')
   @Permissions('MONOGRAFICO_VALIDAR')
   validate(

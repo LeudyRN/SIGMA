@@ -92,9 +92,11 @@ const date = (value: string | null) =>
 export function MonographWorkspace({
   paymentsOnly = false,
   initialSearch = '',
+  initialTab = 'expedientes',
 }: {
   paymentsOnly?: boolean;
   initialSearch?: string;
+  initialTab?: 'expedientes' | 'grupos';
 }) {
   const user = useAuthStore((s) => s.user);
   const allow = (p: string) =>
@@ -119,10 +121,14 @@ export function MonographWorkspace({
     enabled: !!user,
     refetchInterval: 15000,
   });
-  const [tab, setTab] = useState('expedientes');
+  const [tab, setTab] = useState<string>(initialTab);
   const [search, setSearch] = useState(initialSearch);
   const managesPayments = allow('MONOGRAFICO_PAGOS_GESTIONAR');
   const [review, setReview] = useState<Enrollment | null>(null);
+  const [contactReview, setContactReview] = useState<{
+    enrollment: Enrollment;
+    participant: Participant;
+  } | null>(null);
   const [simulation, setSimulation] = useState<{
     row: Enrollment;
     channel: 'CAJA' | 'VIRTUAL';
@@ -134,6 +140,7 @@ export function MonographWorkspace({
     onSuccess: async () => {
       toast.success('Operación guardada.');
       setReview(null);
+      setContactReview(null);
       setSimulation(null);
       await client.invalidateQueries({ queryKey: ['monograph'] });
       await client.invalidateQueries({ queryKey: ['student-process'] });
@@ -160,6 +167,9 @@ export function MonographWorkspace({
       .includes(search.toLowerCase()),
   );
   const disabled = mutation.isPending;
+  const visibleGroups = data.groups.filter(
+    (group) => !search || items.some((item) => item.offerId === group.id),
+  );
   const base = (r: Enrollment) => `/monograph/enrollments/${r.id}`;
   return (
     <div className="space-y-5">
@@ -300,6 +310,17 @@ export function MonographWorkspace({
                           {p.contactConfirmed ? 'Contacto confirmado' : 'Contacto pendiente'}
                         </span>
                       </span>
+                      {!p.contactConfirmed && allow('MONOGRAFICO_VALIDAR') && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          disabled={disabled}
+                          onClick={() => setContactReview({ enrollment: row, participant: p })}
+                        >
+                          Confirmar contacto de {p.registration}
+                        </Button>
+                      )}
                       {p.grade !== null && (
                         <strong>
                           Nota: {p.grade} / 100 {row.remittedAt ? '· Remitida' : '· Borrador'}
@@ -311,9 +332,30 @@ export function MonographWorkspace({
                 {(!paymentsOnly || allow('MONOGRAFICO_VALIDAR')) && (
                   <ol className="mt-4 grid gap-2 text-sm sm:grid-cols-4">
                     {[
-                      ['Recepción', date(row.receivedAt)],
-                      ['Validación', date(row.validatedAt)],
-                      ['Deuda', date(row.debtOpenedAt)],
+                      [
+                        'Recepción',
+                        row.receivedAt
+                          ? date(row.receivedAt)
+                          : progress.paid
+                            ? 'Sin fecha registrada'
+                            : 'Pendiente',
+                      ],
+                      [
+                        'Validación',
+                        row.validatedAt
+                          ? date(row.validatedAt)
+                          : progress.paid
+                            ? 'Sin fecha registrada'
+                            : 'Pendiente',
+                      ],
+                      [
+                        'Deuda',
+                        row.debtOpenedAt
+                          ? date(row.debtOpenedAt)
+                          : progress.paid
+                            ? 'Sin fecha registrada'
+                            : 'Pendiente',
+                      ],
                       ['Pago', progress.paymentLabel],
                     ].map(([label, value]) => (
                       <li key={label} className="rounded-xl border p-3">
@@ -322,6 +364,12 @@ export function MonographWorkspace({
                       </li>
                     ))}
                   </ol>
+                )}
+                {progress.hasUnrecordedSteps && (
+                  <p className="mt-3 text-sm text-slate-600">
+                    Este expediente tiene un pago aprobado, pero no conserva las fechas de algunas
+                    etapas previas. No requiere volver a pagar ni aprobar la inscripción.
+                  </p>
                 )}
                 {!paymentsOnly && row.documents.length > 0 && (
                   <p className="mt-3 text-sm">
@@ -374,6 +422,26 @@ export function MonographWorkspace({
                   )}
                 </div>
                 <div className="mt-4 flex flex-wrap gap-2">
+                  {progress.paid && !progress.closed && (
+                    <div className="w-full rounded-xl border border-emerald-200 bg-emerald-50 p-4 text-sm">
+                      <p>
+                        El pago ya confirmó esta inscripción. El siguiente paso es el seguimiento
+                        del grupo y las calificaciones.
+                      </p>
+                      {allow('MONOGRAFICO_GRUPOS') ? (
+                        <Link
+                          href={`/app/monograficos?inscripcion=${encodeURIComponent(row.code)}&tab=grupos`}
+                          className="mt-2 inline-block font-semibold text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                        >
+                          Continuar con grupo y notas
+                        </Link>
+                      ) : student && !row.whatsappUrl ? (
+                        <p className="mt-2">
+                          Secretaría publicará la información de tu grupo aquí.
+                        </p>
+                      ) : null}
+                    </div>
+                  )}
                   {!row.paid && !progress.closed && (
                     <>
                       {allow('MONOGRAFICO_RECIBIR') && !row.receivedAt && (
@@ -546,8 +614,16 @@ export function MonographWorkspace({
       )}
       {!paymentsOnly && !student && tab === 'grupos' && (
         <div className="space-y-4">
-          {data.groups.length === 0 && <p>No tienes cursos asignados.</p>}
-          {data.groups.map((group) => (
+          {search && (
+            <div className="flex flex-wrap items-center gap-3 text-sm">
+              <p>Grupo del expediente: {search}</p>
+              <Button variant="outline" onClick={() => setSearch('')}>
+                Ver todos los grupos
+              </Button>
+            </div>
+          )}
+          {visibleGroups.length === 0 && <p>No hay grupos para esta selección.</p>}
+          {visibleGroups.map((group) => (
             <GroupCard
               key={group.id}
               group={group}
@@ -635,6 +711,53 @@ export function MonographWorkspace({
         <Report items={data.items} groups={data.groups} />
       )}
       <EntityDialog
+        open={!!contactReview}
+        onClose={() => setContactReview(null)}
+        title="Confirmar contacto del estudiante"
+        description="Secretaría puede registrar el teléfono verificado con el estudiante. La confirmación queda en auditoría."
+      >
+        <form
+          className="space-y-4"
+          onSubmit={(event) => {
+            event.preventDefault();
+            if (!contactReview) return;
+            const form = new FormData(event.currentTarget);
+            run(
+              base(contactReview.enrollment) +
+                '/participants/' +
+                contactReview.participant.id +
+                '/contact',
+              {
+                phone: String(form.get('phone') ?? '').trim(),
+                confirmed: true,
+              },
+              'PATCH',
+            );
+          }}
+        >
+          <p className="text-sm">
+            {contactReview?.participant.registration} · {contactReview?.participant.name}
+          </p>
+          <Field label="Teléfono / WhatsApp con código de país">
+            <input
+              name="phone"
+              type="tel"
+              required
+              pattern="\+?[1-9][0-9]{9,14}"
+              maxLength={16}
+              defaultValue={contactReview?.participant.phone ?? ''}
+              placeholder="+18095551234"
+              className={fieldClass}
+            />
+          </Field>
+          <label className="flex items-start gap-2 text-sm">
+            <input type="checkbox" required className="mt-1" />
+            He verificado con el estudiante que este contacto es correcto.
+          </label>
+          <Button disabled={disabled}>Guardar y confirmar contacto</Button>
+        </form>
+      </EntityDialog>
+      <EntityDialog
         open={!!review}
         onClose={() => setReview(null)}
         title="Revisión final de Secretaría"
@@ -667,7 +790,18 @@ export function MonographWorkspace({
             <input type="checkbox" required className="mt-1" />
             He revisado el expediente y confirmo que la documentación está completa.
           </label>
-          <Button disabled={disabled}>Validar expediente</Button>
+          {review?.participants.some((participant) => !participant.contactConfirmed) && (
+            <p role="status" className="text-sm text-amber-800">
+              Confirma los contactos pendientes desde la ficha del estudiante antes de validar.
+            </p>
+          )}
+          <Button
+            disabled={
+              disabled || review?.participants.some((participant) => !participant.contactConfirmed)
+            }
+          >
+            Validar expediente
+          </Button>
         </form>
       </EntityDialog>
       <EntityDialog
