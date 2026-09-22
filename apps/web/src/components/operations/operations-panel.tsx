@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import Link from 'next/link';
 import {
   CheckCircle2,
   Download,
@@ -253,7 +254,7 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
     setEditorItem(null);
   };
   const openStatus = (item: Item) => {
-    setForm({ statusCode: String(item.status ?? '') });
+    setForm({ statusCode: '' });
     setEditorItem(item);
   };
   const handleRowAction = (kind: RowAction, item: Item) => {
@@ -466,6 +467,19 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
               save.mutate();
             }}
           >
+            {mode === 'inscripciones' && (
+              <p className="text-sm text-slate-600 sm:col-span-2">
+                Los estados Elegible, Pendiente de pago, Pagada y Confirmada se actualizan mediante
+                la revisión del expediente, la apertura de deuda y el pago en{' '}
+                <Link
+                  href="/app/monograficos"
+                  className="font-semibold text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                >
+                  Gestión de monográficos
+                </Link>
+                .
+              </p>
+            )}
             {mode === 'ofertas' ? (
               <OfferEditorFields
                 fields={editor.fields}
@@ -1014,10 +1028,19 @@ function buildEditor(
           label: 'Nuevo estado',
           type: 'select',
           required: true,
-          options: (catalogs.enrollments?.states ?? []).map((state) => ({
-            value: String(state.code),
-            label: String(state.name),
-          })),
+          options: (catalogs.enrollments?.states ?? [])
+            .filter(
+              (state) =>
+                state.status === 'ACTIVO' &&
+                state.code !== item.status &&
+                !['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGADA', 'CONFIRMADA'].includes(
+                  String(state.code),
+                ),
+            )
+            .map((state) => ({
+              value: String(state.code),
+              label: String(state.name),
+            })),
         },
         { key: 'reason', label: 'Motivo u observación', type: 'textarea' },
       ],
