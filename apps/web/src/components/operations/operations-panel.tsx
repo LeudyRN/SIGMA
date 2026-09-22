@@ -1014,7 +1014,10 @@ function buildEditor(
           label: 'Nuevo estado',
           type: 'select',
           required: true,
-          options: select(catalogs.enrollments?.states, (x) => String(x.name)),
+          options: (catalogs.enrollments?.states ?? []).map((state) => ({
+            value: String(state.code),
+            label: String(state.name),
+          })),
         },
         { key: 'reason', label: 'Motivo u observación', type: 'textarea' },
       ],
