@@ -33,5 +33,6 @@ export function enrollmentProgress(row: EnrollmentProgressInput) {
           : row.receivedAt
             ? 'Expediente en revisión'
             : 'Pendiente de recepción';
-  return { closed, paid, paymentLabel, enrollmentLabel };
+  const hasUnrecordedSteps = paid && (!row.receivedAt || !row.validatedAt || !row.debtOpenedAt);
+  return { closed, paid, paymentLabel, enrollmentLabel, hasUnrecordedSteps };
 }

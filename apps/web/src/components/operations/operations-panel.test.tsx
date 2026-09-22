@@ -113,6 +113,39 @@ describe('OperationsPanel table values', () => {
   });
 });
 
+it.each(['CONFIRMADA', 'PAGADA', 'FINALIZADA'])(
+  'no ofrece cambiar manualmente una inscripción %s',
+  async (status) => {
+    useAuthStore.setState({
+      user: {
+        id: '1',
+        uuid: 'secretaria',
+        name: 'Secretaría',
+        email: '',
+        employeeCode: '',
+        matricula: '',
+        permissions: ['INSCRIPCIONES_GESTIONAR'],
+        roles: [{ code: 'SECRETARIA', name: 'Secretaría' }],
+      },
+    });
+    vi.mocked(apiJson).mockImplementation(async (path) =>
+      path === '/enrollments/catalogs'
+        ? { states: [] }
+        : { items: [{ id: '12', code: 'INS-12', status, statusFinal: status === 'FINALIZADA' }] },
+    );
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <OperationsPanel mode="inscripciones" />
+      </QueryClientProvider>,
+    );
+    await screen.findByText('INS-12');
+    expect(screen.queryByRole('button', { name: 'Cambiar estado' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Gestionar expediente y pago' })).toBeVisible();
+    client.clear();
+  },
+);
+
 it('shows teaching mode from enrollments and projects, including unclassified offers', () => {
   expect(readPath({ offer: { teachingMode: 'VIRTUAL' } }, 'offer.teachingMode')).toBe('VIRTUAL');
   expect(

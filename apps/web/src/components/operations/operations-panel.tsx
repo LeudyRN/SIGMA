@@ -1747,7 +1747,12 @@ function rowActions(
   isStudent: boolean,
 ): Array<{ kind: RowAction; label: string }> {
   const actions: Array<{ kind: RowAction; label: string }> = [{ kind: 'view', label: 'Ver' }];
-  if (canManage && mode === 'inscripciones')
+  if (
+    canManage &&
+    mode === 'inscripciones' &&
+    !item.statusFinal &&
+    !['CONFIRMADA', 'PAGADA'].includes(String(item.status))
+  )
     actions.push({ kind: 'status', label: 'Cambiar estado' });
   if (
     (canManage ||

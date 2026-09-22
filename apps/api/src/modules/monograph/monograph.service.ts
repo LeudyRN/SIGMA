@@ -235,19 +235,67 @@ export class MonographService {
   }
   async confirmContact(user: AuthenticatedUser, dto: ContactDto) {
     await this.prisma.$transaction(async (db) => {
-      await db.usuarios.update({
-        where: { id_usuario: id(user.id) },
-        data: { telefono: dto.phone, whatsapp_confirmado_at: new Date() },
-      });
-      await db.estudiantes.updateMany({
-        where: { id_usuario: id(user.id) },
-        data: { whatsapp: dto.phone },
-      });
+      await this.saveContact(db, id(user.id), dto.phone);
       await this.audit(db, user, 'CONFIRMAR_CONTACTO', user.id, {
         confirmed: true,
       });
     });
     return { id: user.id, confirmed: true };
+  }
+  async confirmParticipantContact(
+    user: AuthenticatedUser,
+    enrollmentId: string,
+    studentId: string,
+    dto: ContactDto,
+  ) {
+    if (!granted(user, 'MONOGRAFICO_VALIDAR'))
+      throw new ForbiddenException(
+        'No puedes confirmar contactos de otros estudiantes.',
+      );
+    if (dto.confirmed !== true)
+      throw new BadRequestException(
+        'Confirma que verificaste el contacto con el estudiante.',
+      );
+    return this.prisma.$transaction(async (db) => {
+      const participant = await db.inscripcion_estudiantes.findFirst({
+        where: {
+          id_inscripcion: id(enrollmentId),
+          id_estudiante: id(studentId),
+        },
+        select: { estudiantes: { select: { id_usuario: true } } },
+      });
+      if (!participant)
+        throw new NotFoundException(
+          'El estudiante no pertenece a esta inscripción.',
+        );
+      await this.saveContact(db, participant.estudiantes.id_usuario, dto.phone);
+      await this.audit(
+        db,
+        user,
+        'CONFIRMAR_CONTACTO_SECRETARIA',
+        enrollmentId,
+        {
+          studentId,
+          userId: participant.estudiantes.id_usuario.toString(),
+          confirmed: true,
+        },
+      );
+      return { id: enrollmentId, studentId, confirmed: true };
+    });
+  }
+  private async saveContact(
+    db: Prisma.TransactionClient,
+    userId: bigint,
+    phone: string,
+  ) {
+    await db.usuarios.update({
+      where: { id_usuario: userId },
+      data: { telefono: phone, whatsapp_confirmado_at: new Date() },
+    });
+    await db.estudiantes.updateMany({
+      where: { id_usuario: userId },
+      data: { whatsapp: phone },
+    });
   }
   async receive(user: AuthenticatedUser, enrollmentId: string) {
     return this.prisma.$transaction(async (db) => {

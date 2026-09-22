@@ -18,7 +18,7 @@ import { OperationsPanel, type OperationsMode } from '@/components/operations/op
 
 interface ModulePageProps {
   params: Promise<{ module: string }>;
-  searchParams: Promise<{ inscripcion?: string | string[] }>;
+  searchParams: Promise<{ inscripcion?: string | string[]; tab?: string | string[] }>;
 }
 
 export function generateStaticParams() {
@@ -75,9 +75,16 @@ export default async function ModulePlanningPage({ params, searchParams }: Modul
   if (item.slug === 'coordinacion-academica') return <CoordinationWorkspace />;
   if (item.slug === 'asesores-jurados') return <CoordinationWorkspace initialTab="personal" />;
   if (item.slug === 'monograficos') {
-    const { inscripcion } = await searchParams;
+    const { inscripcion, tab } = await searchParams;
     const initialSearch = typeof inscripcion === 'string' ? inscripcion : '';
-    return <MonographWorkspace key={initialSearch} initialSearch={initialSearch} />;
+    const initialTab = tab === 'grupos' ? 'grupos' : 'expedientes';
+    return (
+      <MonographWorkspace
+        key={`${initialSearch}-${initialTab}`}
+        initialSearch={initialSearch}
+        initialTab={initialTab}
+      />
+    );
   }
   if (item.slug === 'facturas') return <RoleAwareProcessPanel mode="invoices" />;
   const operationsModes = new Set<OperationsMode>([

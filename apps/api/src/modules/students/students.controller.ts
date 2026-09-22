@@ -39,7 +39,7 @@ import { StudentsService } from './students.service';
 @ApiTags('Estudiantes')
 @ApiCookieAuth('sigma_access_token')
 @UseGuards(JwtAuthGuard, RolesGuard, PermissionsGuard)
-@Roles(RoleCode.Admin, RoleCode.Coordinator)
+@Roles(RoleCode.Admin, RoleCode.Coordinator, RoleCode.Secretary)
 @Permissions('ESTUDIANTES_EXPEDIENTE_GESTIONAR')
 @Controller('students')
 export class StudentsController {

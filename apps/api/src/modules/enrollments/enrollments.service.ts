@@ -629,6 +629,7 @@ function mapEnrollment(row: EnrollmentRecord) {
     code: row.codigo,
     status: row.estados_inscripcion.codigo,
     statusName: row.estados_inscripcion.nombre,
+    statusFinal: row.estados_inscripcion.es_final,
     requestedAt: row.fecha_solicitud,
     confirmedAt: row.fecha_confirmacion,
     amount: Number(row.monto_aplicado),
