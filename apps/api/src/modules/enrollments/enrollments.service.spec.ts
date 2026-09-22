@@ -17,6 +17,27 @@ const FILE: UploadedEnrollmentDocument = {
   size: 9,
 };
 
+describe('Cambios manuales de inscripción', () => {
+  it.each([
+    'ELEGIBLE',
+    'PENDIENTE_PAGO',
+    'PAGO_PROCESANDO',
+    'PAGADA',
+    'CONFIRMADA',
+  ])(
+    'impide asignar %s sin completar su operación de dominio',
+    async (statusCode) => {
+      const service = new EnrollmentsService(
+        {} as PrismaService,
+        {} as NotificationsService,
+      );
+      await expect(
+        service.changeStatus('1', '12', { statusCode }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    },
+  );
+});
+
 describe('EnrollmentsService documents', () => {
   it('persists a student document in the database with its integrity hash', async () => {
     let createData: Record<string, unknown> | undefined;

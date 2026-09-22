@@ -4,7 +4,11 @@ jest.mock('../../prisma/prisma.service', () => ({
 jest.mock('../students/students.service', () => ({
   StudentsService: class StudentsService {},
 }));
-import { ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { MonographService } from './monograph.service';
 import type { PrismaService } from '../../prisma/prisma.service';
 import type { StudentsService } from '../students/students.service';
@@ -30,20 +34,47 @@ function fixture(overrides: Record<string, unknown> = {}) {
     validado_at: new Date(),
     canal_pago: 'CAJA',
     estados_inscripcion: { codigo: 'PENDIENTE_PAGO' },
+    monto_aplicado: 2000,
+    moneda: 'DOP',
+    inscripcion_estudiantes: [
+      {
+        es_principal: true,
+        estudiantes: {
+          matricula: '1001',
+          usuarios: { nombres: 'Alumno', apellidos: 'Prueba' },
+        },
+      },
+    ],
     pagos: [],
     solicitudes_documentos: [],
-    ofertas: { notas_remitidas_at: null },
+    ofertas: {
+      notas_remitidas_at: null,
+      titulo: 'Curso',
+      recinto_carreras: { recintos: { nombre: 'Santiago' } },
+    },
     ...overrides,
   };
   const db = {
     inscripciones: {
+      findFirst: jest.fn(() => Promise.resolve(null)),
       findUnique: jest.fn(() => Promise.resolve(row)),
       updateMany: jest.fn(() => Promise.resolve({ count: 1 })),
+      update: jest.fn(),
     },
     pagos: {
       findUnique: jest.fn((): Promise<unknown> => Promise.resolve(null)),
-      create: jest.fn(),
+      create: jest.fn(({ data }: { data: { estado: string } }) =>
+        Promise.resolve({ id_pago: 9n, estado: data.estado, monto: 2000 }),
+      ),
     },
+    metodos_pago: {
+      findUnique: jest.fn(() => Promise.resolve({ id_metodo_pago: 1n })),
+    },
+    estados_inscripcion: {
+      findUnique: jest.fn(() => Promise.resolve({ id_estado: 2n })),
+    },
+    facturas: { create: jest.fn() },
+    historial_estados_inscripcion: { create: jest.fn() },
     auditoria: { create: jest.fn() },
     ofertas: { updateMany: jest.fn(() => Promise.resolve({ count: 1 })) },
   };
@@ -60,6 +91,67 @@ function fixture(overrides: Record<string, unknown> = {}) {
   return { service, db, row };
 }
 describe('Flujo de monográficos', () => {
+  const secretary = {
+    ...user,
+    roles: ['SECRETARIA'],
+    permissions: ['MONOGRAFICO_PAGOS_GESTIONAR'],
+  };
+
+  it.each(['CAJA', 'VIRTUAL'] as const)(
+    'permite a Secretaría elegir el canal %s de una deuda ajena',
+    async (channel) => {
+      const { service, db } = fixture();
+      await expect(
+        service.chooseChannel(secretary, '1', channel),
+      ).resolves.toEqual({ id: '1', channel });
+      expect(db.inscripciones.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { canal_pago: channel, version_lock: { increment: 1 } },
+        }),
+      );
+    },
+  );
+
+  it.each(['CAJA', 'VIRTUAL'] as const)(
+    'Secretaría rechaza y aprueba por %s con recibo solo al aprobar',
+    async (channel) => {
+      const { service, db } = fixture({ canal_pago: channel });
+      await expect(
+        service.simulate(secretary, '1', {
+          ...input,
+          channel,
+          outcome: 'RECHAZADO',
+        }),
+      ).resolves.toMatchObject({ status: 'RECHAZADO' });
+      expect(db.facturas.create).not.toHaveBeenCalled();
+      expect(db.inscripciones.update).not.toHaveBeenCalled();
+      await expect(
+        service.simulate(secretary, '1', {
+          ...input,
+          channel,
+          idempotencyKey: 'retry',
+        }),
+      ).resolves.toMatchObject({ status: 'APROBADO' });
+      expect(db.facturas.create).toHaveBeenCalledTimes(1);
+      expect(db.inscripciones.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: { id_estado: 2n, fecha_confirmacion: expect.any(Date) as Date },
+        }),
+      );
+    },
+  );
+
+  it('mantiene el control de propiedad virtual para usuarios sin el permiso financiero', async () => {
+    const { service, db } = fixture();
+    await expect(
+      service.simulate({ ...user, permissions: ['MONOGRAFICO_VALIDAR'] }, '1', {
+        ...input,
+        channel: 'VIRTUAL',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(db.inscripciones.findFirst).toHaveBeenCalled();
+    expect(db.pagos.create).not.toHaveBeenCalled();
+  });
   it('reserva el cobro presencial a Caja', async () => {
     const { service } = fixture();
     await expect(

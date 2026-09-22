@@ -1540,3 +1540,13 @@ ALTER TABLE `alertas_academicas` ADD CONSTRAINT `alertas_academicas_id_usuario_f
 
 INSERT INTO permisos(codigo,nombre,modulo,estado) VALUES ('COORDINACION_ACADEMICA_LEER','Consultar coordinación académica','COORDINACION','ACTIVO') ON DUPLICATE KEY UPDATE nombre=VALUES(nombre);
 INSERT IGNORE INTO rol_permisos(id_rol,id_permiso) SELECT r.id_rol,p.id_permiso FROM roles r CROSS JOIN permisos p WHERE p.codigo='COORDINACION_ACADEMICA_LEER' AND r.codigo IN ('ADMIN','COORDINADOR','ENCARGADO','SECRETARIA','OFICINISTA','COORDINADOR_MONOGRAFICO','DOCENTE','ASESOR','JURADO','ESTUDIANTE');
+
+-- Secretaría: gestión de resultados de pagos simulados.
+INSERT INTO permisos (codigo, nombre, modulo, estado)
+VALUES ('MONOGRAFICO_PAGOS_GESTIONAR', 'Registrar resultados de pagos simulados', 'MONOGRAFICO', 'ACTIVO')
+ON DUPLICATE KEY UPDATE nombre = VALUES(nombre);
+
+INSERT IGNORE INTO rol_permisos (id_rol, id_permiso)
+SELECT r.id_rol, p.id_permiso
+FROM roles r CROSS JOIN permisos p
+WHERE r.codigo = 'SECRETARIA' AND p.codigo = 'MONOGRAFICO_PAGOS_GESTIONAR';
