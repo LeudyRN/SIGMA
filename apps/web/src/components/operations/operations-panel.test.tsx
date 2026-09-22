@@ -36,6 +36,7 @@ it.each(['VALIDANDO', 'PENDIENTE_PAGO'])(
       'VALIDANDO',
       'ELEGIBLE',
       'PENDIENTE_PAGO',
+      'PAGO_PROCESANDO',
       'PAGADA',
       'CONFIRMADA',
       'CANCELADA',
@@ -63,6 +64,7 @@ it.each(['VALIDANDO', 'PENDIENTE_PAGO'])(
     for (const code of [
       'ELEGIBLE',
       'PENDIENTE_PAGO',
+      'PAGO_PROCESANDO',
       'PAGADA',
       'CONFIRMADA',
       'Estado inactivo',

@@ -469,8 +469,8 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
           >
             {mode === 'inscripciones' && (
               <p className="text-sm text-slate-600 sm:col-span-2">
-                Los estados Elegible, Pendiente de pago, Pagada y Confirmada se actualizan mediante
-                la revisión del expediente, la apertura de deuda y el pago en{' '}
+                La revisión del expediente, la apertura de deuda y los resultados del pago se
+                gestionan en{' '}
                 <Link
                   href="/app/monograficos"
                   className="font-semibold text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-2"
@@ -771,6 +771,14 @@ function DataTable({
               ))}
               <td className="px-5 py-3">
                 <div className="flex justify-end gap-2">
+                  {mode === 'inscripciones' && canManage && (
+                    <Link
+                      href={`/app/monograficos?inscripcion=${encodeURIComponent(String(item.code ?? ''))}`}
+                      className="rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-2"
+                    >
+                      Gestionar expediente y pago
+                    </Link>
+                  )}
                   {rowActions(mode, item, canManage, isStudent).map((rowAction) => (
                     <Button
                       key={rowAction.kind}
@@ -1033,7 +1041,7 @@ function buildEditor(
               (state) =>
                 state.status === 'ACTIVO' &&
                 state.code !== item.status &&
-                !['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGADA', 'CONFIRMADA'].includes(
+                !['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGO_PROCESANDO', 'PAGADA', 'CONFIRMADA'].includes(
                   String(state.code),
                 ),
             )

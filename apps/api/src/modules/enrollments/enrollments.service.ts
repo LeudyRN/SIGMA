@@ -120,9 +120,13 @@ export class EnrollmentsService {
     dto: ChangeEnrollmentStatusDto,
   ) {
     if (
-      ['ELEGIBLE', 'PENDIENTE_PAGO', 'PAGADA', 'CONFIRMADA'].includes(
-        dto.statusCode.toUpperCase(),
-      )
+      [
+        'ELEGIBLE',
+        'PENDIENTE_PAGO',
+        'PAGO_PROCESANDO',
+        'PAGADA',
+        'CONFIRMADA',
+      ].includes(dto.statusCode.toUpperCase())
     )
       throw new BadRequestException(
         'Usa la validación, apertura de deuda y pago del flujo de monográficos.',

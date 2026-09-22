@@ -135,6 +135,19 @@ async function main() {
           sessionId: 'test',
         });
         const secretary = auth(actor.id_usuario, ['*']);
+        const paymentSecretary = auth(actor.id_usuario, [
+          'MONOGRAFICO_LEER',
+          'MONOGRAFICO_PAGOS_GESTIONAR',
+        ]);
+        assert.ok(
+          await db.rol_permisos.findFirst({
+            where: {
+              roles: { codigo: 'SECRETARIA' },
+              permisos: { codigo: 'MONOGRAFICO_PAGOS_GESTIONAR' },
+            },
+          }),
+          'Secretaría debe tener asignado el permiso financiero',
+        );
         const own = auth(learner.id_usuario, ['MONOGRAFICO_LEER']);
         const lecturer = auth(teacher.id_usuario, [
           'MONOGRAFICO_LEER',
@@ -209,21 +222,33 @@ async function main() {
             }),
             /deuda activa/,
           );
-          await flow.chooseChannel(own, enrollmentId, channel);
+          await flow.chooseChannel(paymentSecretary, enrollmentId, channel);
           const input = {
             channel,
             idempotencyKey: randomUUID(),
             outcome: 'RECHAZADO' as const,
             simulationAcknowledged: true,
           };
-          const payer = channel === 'VIRTUAL' ? own : secretary;
+          const payer = paymentSecretary;
           await flow.simulate(payer, enrollmentId, input);
+          const rejectedView = (await flow.workspace(own)).items.find(
+            (entry) => entry.id === enrollmentId,
+          )!;
+          assert.equal(rejectedView.paid, false);
+          assert.equal(rejectedView.status, 'PENDIENTE_PAGO');
+          assert.equal(rejectedView.payments[0].status, 'RECHAZADO');
           const approved = {
             ...input,
             idempotencyKey: randomUUID(),
             outcome: 'APROBADO' as const,
           };
           const payment = await flow.simulate(payer, enrollmentId, approved);
+          const approvedView = (await flow.workspace(own)).items.find(
+            (entry) => entry.id === enrollmentId,
+          )!;
+          assert.equal(approvedView.paid, true);
+          assert.equal(approvedView.status, 'CONFIRMADA');
+          assert.ok(approvedView.payments[0].invoice);
           assert.equal(
             (await flow.simulate(payer, enrollmentId, approved)).id,
             payment.id,

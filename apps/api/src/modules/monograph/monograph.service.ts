@@ -35,6 +35,7 @@ const staffPermissions = [
   'MONOGRAFICO_GRUPOS',
   'MONOGRAFICO_REPORTES',
   'MONOGRAFICO_CAJA',
+  'MONOGRAFICO_PAGOS_GESTIONAR',
   'MONOGRAFICO_REGLAS',
 ];
 const enrollmentInclude = {
@@ -404,19 +405,30 @@ export class MonographService {
     enrollmentId: string,
     channel: 'CAJA' | 'VIRTUAL',
   ) {
-    const row = await this.ownedEnrollment(user, enrollmentId);
+    const row = granted(user, 'MONOGRAFICO_PAGOS_GESTIONAR')
+      ? await this.prisma.inscripciones.findUnique({
+          where: { id_inscripcion: id(enrollmentId) },
+          include: enrollmentInclude,
+        })
+      : await this.ownedEnrollment(user, enrollmentId);
+    if (!row) throw new NotFoundException('Inscripción no encontrada.');
     if (!row.deuda_abierta_at || row.pagos.some((p) => p.estado === 'APROBADO'))
       throw new ConflictException('No hay una deuda activa por pagar.');
     this.assertActive(row.estados_inscripcion.codigo);
-    const result = await this.prisma.inscripciones.updateMany({
-      where: {
-        id_inscripcion: row.id_inscripcion,
-        version_lock: row.version_lock,
-      },
-      data: { canal_pago: channel, version_lock: { increment: 1 } },
+    await this.prisma.$transaction(async (db) => {
+      const result = await db.inscripciones.updateMany({
+        where: {
+          id_inscripcion: row.id_inscripcion,
+          version_lock: row.version_lock,
+        },
+        data: { canal_pago: channel, version_lock: { increment: 1 } },
+      });
+      if (result.count !== 1)
+        throw new ConflictException('La deuda cambió. Actualiza.');
+      await this.audit(db, user, 'ELEGIR_CANAL_PAGO', enrollmentId, {
+        channel,
+      });
     });
-    if (result.count !== 1)
-      throw new ConflictException('La deuda cambió. Actualiza.');
     return { id: enrollmentId, channel };
   }
   async simulate(
@@ -426,9 +438,16 @@ export class MonographService {
   ) {
     if (dto.simulationAcknowledged !== true)
       throw new BadRequestException('Confirma el uso del simulador.');
-    if (dto.channel === 'CAJA' && !granted(user, 'MONOGRAFICO_CAJA'))
-      throw new ForbiddenException('El cobro presencial corresponde a Caja.');
-    if (dto.channel === 'VIRTUAL')
+    const managesPayments = granted(user, 'MONOGRAFICO_PAGOS_GESTIONAR');
+    if (
+      dto.channel === 'CAJA' &&
+      !granted(user, 'MONOGRAFICO_CAJA') &&
+      !managesPayments
+    )
+      throw new ForbiddenException(
+        'El cobro presencial corresponde a Caja o Secretaría autorizada.',
+      );
+    if (dto.channel === 'VIRTUAL' && !managesPayments)
       await this.ownedEnrollment(user, enrollmentId);
     return this.prisma.$transaction(async (db) => {
       const row = await db.inscripciones.findUnique({

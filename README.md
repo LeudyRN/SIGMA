@@ -388,7 +388,7 @@ Auditoría ofrece paginación en el servidor y filtros por acción, módulo, bú
 La referencia funcional es `Propuesta_SIGMA_Monografico_UCOTESIS.pdf`. La petición del proyecto prevalece sobre su propuesta de pasarela bancaria: todos los pagos nuevos son **simulaciones sin movimiento de dinero**. No se solicitan tarjetas, cuentas ni comprobantes. Se conservan los pagos y recibos históricos.
 
 - **Oficinista:** recibe el expediente, solicita y archiva documentos recibidos.
-- **Secretaría:** revisa los documentos y la elegibilidad, valida el expediente y utiliza «Crear pago · abrir deuda». Organiza grupos, presupuestos y plantillas; registra la remisión de notas a Dirección.
+- **Secretaría:** revisa los documentos y la elegibilidad, valida el expediente y utiliza «Abrir deuda · pago pendiente». Con `MONOGRAFICO_PAGOS_GESTIONAR` también elige el canal y registra pagos simulados aprobados o rechazados. Organiza grupos, presupuestos y plantillas; registra la remisión de notas a Dirección.
 - **Estudiante:** confirma su contacto, consulta ofertas compatibles, solicita inscripción y sigue su expediente. Después de abrirse la deuda elige Caja presencial o pago virtual.
 - **Caja local:** busca la matrícula y ejecuta el cobro presencial simulado.
 - **Tesorería central:** consulta ingresos virtuales; una aprobación virtual deja conciliación simulada automática y trazabilidad transaccional.
@@ -396,6 +396,10 @@ La referencia funcional es `Propuesta_SIGMA_Monografico_UCOTESIS.pdf`. La petici
 - **Encargado/a:** organiza la oferta y consulta los informes consolidados para Subdirección Académica.
 
 La nueva pantalla **Gestión de monográficos** contiene expedientes, grupos y plantillas, informes y política académica por plan. **Deudas y pagos** muestra el simulador y los recibos. El formulario de ofertas separa datos del curso, inscripción/costo y publicación; los requisitos particulares quedan en opciones adicionales. La modalidad de enseñanza sigue siendo presencial, virtual o semipresencial, y el tipo de trabajo conserva tesis, monográfico y trabajo final.
+
+En Inscripciones, «Gestionar expediente y pago» abre el expediente seleccionado. Secretaría también puede recibir, revisar y abrir la deuda desde Deudas y pagos. Después selecciona el canal y usa «Registrar resultado de pago»: un rechazo conserva el intento y permite reintentar; una aprobación confirma la inscripción y genera el recibo simulado. El avance documental y el resultado del pago se muestran por separado y se actualizan cada 15 segundos mientras la pantalla está activa. Los estados financieros, incluido `PAGO_PROCESANDO`, no se asignan desde el cambio manual de inscripción.
+
+Aplicar la migración aditiva `20260922180000_secretaria_pagos` con `pnpm prisma:deploy` y actualizar la sesión para cargar el permiso nuevo de Secretaría. Los expedientes que quedaron marcados manualmente como `PAGO_PROCESANDO` sin deuda se muestran según su recepción y revisión reales; al abrir la deuda pasan a `PENDIENTE_PAGO` mediante el flujo normal.
 
 ### Instalación y datos existentes
 

@@ -7,6 +7,8 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { apiJson } from '@/lib/api';
+import { enrollmentProgress } from '@/lib/enrollment-progress';
+import { humanizeSystemValue } from '@/lib/humanize-system-value';
 import { useAuthStore } from '@/store/auth-store';
 
 interface Participant {
@@ -85,17 +87,15 @@ interface Action {
 const money = (amount: number, currency = 'DOP') =>
   new Intl.NumberFormat('es-DO', { style: 'currency', currency }).format(amount);
 const fieldClass = 'w-full min-w-0 rounded-xl border bg-white p-3 text-sm focus:outline-blue-600';
-const statusLabels: Record<string, string> = {
-  VALIDANDO: 'En revisión',
-  PENDIENTE_PAGO: 'Deuda activa',
-  CONFIRMADA: 'Inscripción confirmada',
-  RECHAZADA: 'Rechazada',
-  CANCELADA: 'Cancelada',
-  NO_ELEGIBLE: 'No elegible',
-};
 const date = (value: string | null) =>
   value ? new Date(value).toLocaleDateString('es-DO') : 'Pendiente';
-export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: boolean }) {
+export function MonographWorkspace({
+  paymentsOnly = false,
+  initialSearch = '',
+}: {
+  paymentsOnly?: boolean;
+  initialSearch?: string;
+}) {
   const user = useAuthStore((s) => s.user);
   const allow = (p: string) =>
     !!user &&
@@ -109,6 +109,7 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
       'MONOGRAFICO_VALIDAR',
       'MONOGRAFICO_GRUPOS',
       'MONOGRAFICO_CAJA',
+      'MONOGRAFICO_PAGOS_GESTIONAR',
       'MONOGRAFICO_REPORTES',
     ].some(allow);
   const client = useQueryClient();
@@ -116,9 +117,11 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
     queryKey: ['monograph', user?.id],
     queryFn: () => apiJson<Workspace>('/monograph'),
     enabled: !!user,
+    refetchInterval: 15000,
   });
   const [tab, setTab] = useState('expedientes');
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState(initialSearch);
+  const managesPayments = allow('MONOGRAFICO_PAGOS_GESTIONAR');
   const [review, setReview] = useState<Enrollment | null>(null);
   const [simulation, setSimulation] = useState<{
     row: Enrollment;
@@ -134,6 +137,8 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
       setSimulation(null);
       await client.invalidateQueries({ queryKey: ['monograph'] });
       await client.invalidateQueries({ queryKey: ['student-process'] });
+      await client.invalidateQueries({ queryKey: ['student-portal'] });
+      await client.invalidateQueries({ queryKey: ['operations'] });
     },
     onError: (e: Error) => toast.error(e.message),
   });
@@ -244,7 +249,7 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
               <Button variant="outline" onClick={() => query.refetch()}>
                 Actualizar
               </Button>
-              {!paymentsOnly && (
+              {(!paymentsOnly || allow('MONOGRAFICO_VALIDAR')) && (
                 <Link href="/app/documentos" className="p-2 text-sm font-semibold text-blue-700">
                   Revisar documentos
                 </Link>
@@ -263,98 +268,113 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
               )}
             </p>
           )}
-          {items.map((row) => (
-            <article key={row.id} className="rounded-2xl border bg-white p-5">
-              <div className="flex flex-wrap justify-between gap-3">
-                <div>
-                  <p className="text-xs text-slate-500">
-                    {row.code} · {row.campus}
-                  </p>
-                  <h2 className="mt-1 text-lg font-bold">{row.offer}</h2>
-                  <p className="text-sm text-slate-600">
-                    {row.career} · {row.degreeType} · {row.teachingMode ?? 'Modalidad por definir'}
-                  </p>
-                </div>
-                <span className="self-start rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">
-                  {statusLabels[row.status] ?? row.status}
-                </span>
-              </div>
-              <div className="mt-4 space-y-2">
-                {row.participants.map((p) => (
-                  <div
-                    key={p.id}
-                    className="flex flex-wrap justify-between gap-2 rounded-xl bg-slate-50 p-3 text-sm"
-                  >
-                    <span>
-                      {p.registration} · {p.name}
-                      {p.phone && ` · ${p.phone}`}
-                      <span className="ml-2 text-slate-500">
-                        {p.contactConfirmed ? 'Contacto confirmado' : 'Contacto pendiente'}
-                      </span>
-                    </span>
-                    {p.grade !== null && (
-                      <strong>
-                        Nota: {p.grade} / 100 {row.remittedAt ? '· Remitida' : '· Borrador'}
-                      </strong>
-                    )}
+          {items.map((row) => {
+            const progress = enrollmentProgress(row);
+            return (
+              <article key={row.id} className="rounded-2xl border bg-white p-5">
+                <div className="flex flex-wrap justify-between gap-3">
+                  <div>
+                    <p className="text-xs text-slate-500">
+                      {row.code} · {row.campus}
+                    </p>
+                    <h2 className="mt-1 text-lg font-bold">{row.offer}</h2>
+                    <p className="text-sm text-slate-600">
+                      {row.career} · {row.degreeType} ·{' '}
+                      {row.teachingMode ?? 'Modalidad por definir'}
+                    </p>
                   </div>
-                ))}
-              </div>
-              {!paymentsOnly && (
-                <ol className="mt-4 grid gap-2 text-sm sm:grid-cols-4">
-                  {[
-                    ['Recepción', date(row.receivedAt)],
-                    ['Validación', date(row.validatedAt)],
-                    ['Deuda', date(row.debtOpenedAt)],
-                    ['Pago', row.paid ? 'Saldado' : 'Pendiente'],
-                  ].map(([label, value]) => (
-                    <li key={label} className="rounded-xl border p-3">
-                      <strong className="block">{label}</strong>
-                      <span className="text-slate-500">{value}</span>
-                    </li>
+                  <span className="self-start rounded-full bg-blue-50 px-3 py-2 text-xs font-bold text-blue-800">
+                    {progress.enrollmentLabel}
+                  </span>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {row.participants.map((p) => (
+                    <div
+                      key={p.id}
+                      className="flex flex-wrap justify-between gap-2 rounded-xl bg-slate-50 p-3 text-sm"
+                    >
+                      <span>
+                        {p.registration} · {p.name}
+                        {p.phone && ` · ${p.phone}`}
+                        <span className="ml-2 text-slate-500">
+                          {p.contactConfirmed ? 'Contacto confirmado' : 'Contacto pendiente'}
+                        </span>
+                      </span>
+                      {p.grade !== null && (
+                        <strong>
+                          Nota: {p.grade} / 100 {row.remittedAt ? '· Remitida' : '· Borrador'}
+                        </strong>
+                      )}
+                    </div>
                   ))}
-                </ol>
-              )}
-              {!paymentsOnly && row.documents.length > 0 && (
-                <p className="mt-3 text-sm">
-                  Documentos:{' '}
-                  {row.documents
-                    .map(
-                      (d) =>
-                        `${d.type}: ${d.status === 'SIN_ENTREGAR' ? 'por entregar' : d.status.toLowerCase()}`,
-                    )
-                    .join(' · ')}
-                </p>
-              )}
-              {!paymentsOnly && row.observation && (
-                <p className="mt-3 text-sm text-slate-600">
-                  Observación de Secretaría: {row.observation}
-                </p>
-              )}
-              <div className="mt-4 flex flex-wrap items-center gap-3">
-                <strong>
-                  {row.debtOpenedAt ? 'Deuda del curso' : 'Costo del curso'}:{' '}
-                  {money(row.amount, row.currency)}
-                </strong>
-                {row.paid ? (
-                  <span className="text-sm text-green-700">
-                    Saldada
-                    {row.payments.some((p) => p.simulated && p.status === 'APROBADO')
-                      ? ' mediante simulación'
-                      : ''}
-                  </span>
-                ) : !row.debtOpenedAt ? (
-                  <span className="text-sm text-slate-600">
-                    Secretaría debe completar la revisión y crear el pago.
-                  </span>
-                ) : (
-                  <span className="text-sm">Canal: {row.channel ?? 'Por elegir'}</span>
+                </div>
+                {(!paymentsOnly || allow('MONOGRAFICO_VALIDAR')) && (
+                  <ol className="mt-4 grid gap-2 text-sm sm:grid-cols-4">
+                    {[
+                      ['Recepción', date(row.receivedAt)],
+                      ['Validación', date(row.validatedAt)],
+                      ['Deuda', date(row.debtOpenedAt)],
+                      ['Pago', progress.paymentLabel],
+                    ].map(([label, value]) => (
+                      <li key={label} className="rounded-xl border p-3">
+                        <strong className="block">{label}</strong>
+                        <span className="text-slate-500">{value}</span>
+                      </li>
+                    ))}
+                  </ol>
                 )}
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {!paymentsOnly &&
-                  !row.paid &&
-                  !['CANCELADA', 'RECHAZADA', 'NO_ELEGIBLE'].includes(row.status) && (
+                {!paymentsOnly && row.documents.length > 0 && (
+                  <p className="mt-3 text-sm">
+                    Documentos:{' '}
+                    {row.documents
+                      .map(
+                        (d) =>
+                          `${d.type}: ${d.status === 'SIN_ENTREGAR' ? 'por entregar' : d.status.toLowerCase()}`,
+                      )
+                      .join(' · ')}
+                  </p>
+                )}
+                {!paymentsOnly && row.observation && (
+                  <p className="mt-3 text-sm text-slate-600">
+                    Observación de Secretaría: {row.observation}
+                  </p>
+                )}
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  <span className="w-full text-sm font-semibold">{progress.paymentLabel}</span>
+                  <strong>
+                    {row.debtOpenedAt ? 'Deuda del curso' : 'Costo del curso'}:{' '}
+                    {money(row.amount, row.currency)}
+                  </strong>
+                  {row.paid ? (
+                    <span className="text-sm text-green-700">
+                      Saldada
+                      {row.payments.some((p) => p.simulated && p.status === 'APROBADO')
+                        ? ' mediante simulación'
+                        : ''}
+                    </span>
+                  ) : progress.closed ? (
+                    <span className="text-sm text-slate-600">La inscripción está cerrada.</span>
+                  ) : !row.debtOpenedAt ? (
+                    <span className="text-sm text-slate-600">
+                      {!row.receivedAt
+                        ? 'Secretaría debe registrar la recepción del expediente.'
+                        : !row.validatedAt
+                          ? 'Secretaría debe revisar los documentos y validar el expediente.'
+                          : 'Expediente validado. Secretaría puede abrir la deuda para habilitar el pago.'}
+                    </span>
+                  ) : (
+                    <span className="text-sm">
+                      {progress.paymentLabel === 'Pago rechazado' &&
+                        'El intento fue rechazado. La deuda sigue pendiente y permite reintentar. '}
+                      Canal: {row.channel ?? 'Por elegir'}
+                      {!student &&
+                        !managesPayments &&
+                        ' · El resultado lo registra Caja o Secretaría autorizada.'}
+                    </span>
+                  )}
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {!row.paid && !progress.closed && (
                     <>
                       {allow('MONOGRAFICO_RECIBIR') && !row.receivedAt && (
                         <Button disabled={disabled} onClick={() => run(`${base(row)}/receive`)}>
@@ -372,15 +392,50 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
                       )}
                       {allow('MONOGRAFICO_VALIDAR') && row.validatedAt && !row.debtOpenedAt && (
                         <Button disabled={disabled} onClick={() => run(`${base(row)}/debt`)}>
-                          Crear pago · abrir deuda
+                          Abrir deuda · pago pendiente
                         </Button>
                       )}
                     </>
                   )}
-                {row.debtOpenedAt &&
-                  !row.paid &&
-                  !['CANCELADA', 'RECHAZADA'].includes(row.status) && (
+                  {row.debtOpenedAt && !row.paid && !progress.closed && (
                     <>
+                      {managesPayments && (
+                        <>
+                          <Field label="Canal del pago">
+                            <select
+                              className={fieldClass}
+                              value={row.channel ?? ''}
+                              disabled={disabled}
+                              onChange={(event) =>
+                                run(
+                                  `${base(row)}/channel`,
+                                  { channel: event.target.value },
+                                  'PATCH',
+                                )
+                              }
+                            >
+                              <option value="" disabled>
+                                Seleccionar canal
+                              </option>
+                              <option value="CAJA">Caja presencial</option>
+                              <option value="VIRTUAL">Pago virtual</option>
+                            </select>
+                          </Field>
+                          <Button
+                            disabled={disabled || !row.channel}
+                            onClick={() => {
+                              if (row.channel === 'CAJA' || row.channel === 'VIRTUAL')
+                                setSimulation({
+                                  row,
+                                  channel: row.channel,
+                                  key: crypto.randomUUID(),
+                                });
+                            }}
+                          >
+                            Registrar resultado de pago
+                          </Button>
+                        </>
+                      )}
                       {student && (
                         <>
                           <Button
@@ -419,7 +474,7 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
                           )}
                         </>
                       )}
-                      {allow('MONOGRAFICO_CAJA') && row.channel === 'CAJA' && (
+                      {!managesPayments && allow('MONOGRAFICO_CAJA') && row.channel === 'CAJA' && (
                         <Button
                           disabled={disabled}
                           onClick={() =>
@@ -431,61 +486,62 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
                       )}
                     </>
                   )}
-                {row.paid && row.whatsappUrl && (
-                  <a
-                    className="rounded-xl border px-4 py-2 text-sm font-bold text-green-700"
-                    href={row.whatsappUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Abrir grupo de WhatsApp
-                  </a>
-                )}
-                {!paymentsOnly &&
-                  row.paid &&
-                  !row.remittedAt &&
-                  allow('MONOGRAFICO_NOTAS') &&
-                  data.groups.some((g) => g.id === row.offerId && g.coordinatorId === user?.id) &&
-                  row.participants.map((p) => (
-                    <GradeForm
-                      key={p.id}
-                      participant={p}
-                      disabled={disabled}
-                      submit={(body) => run(`${base(row)}/grade`, body)}
-                    />
-                  ))}
-              </div>
-              {row.payments.length > 0 && (
-                <details className="mt-4 text-sm">
-                  <summary className="cursor-pointer font-semibold">
-                    Pagos y recibos ({row.payments.length})
-                  </summary>
-                  <ul className="mt-3 space-y-2">
-                    {row.payments.map((p) => (
-                      <li
+                  {row.paid && row.whatsappUrl && (
+                    <a
+                      className="rounded-xl border px-4 py-2 text-sm font-bold text-green-700"
+                      href={row.whatsappUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Abrir grupo de WhatsApp
+                    </a>
+                  )}
+                  {!paymentsOnly &&
+                    row.paid &&
+                    !row.remittedAt &&
+                    allow('MONOGRAFICO_NOTAS') &&
+                    data.groups.some((g) => g.id === row.offerId && g.coordinatorId === user?.id) &&
+                    row.participants.map((p) => (
+                      <GradeForm
                         key={p.id}
-                        className="flex flex-wrap items-center gap-3 rounded-xl border p-3"
-                      >
-                        <span>
-                          {p.simulated ? 'SIMULACIÓN' : 'Registro histórico'} ·{' '}
-                          {p.channel ?? 'Canal histórico'} · {p.status} ·{' '}
-                          {money(p.amount, row.currency)}
-                        </span>
-                        {p.invoice && (
-                          <a
-                            className="text-blue-700 underline"
-                            href={`/api/payments/invoices/${p.id}/pdf`}
-                          >
-                            Descargar {p.simulated ? 'recibo de demostración' : 'recibo'}
-                          </a>
-                        )}
-                      </li>
+                        participant={p}
+                        disabled={disabled}
+                        submit={(body) => run(`${base(row)}/grade`, body)}
+                      />
                     ))}
-                  </ul>
-                </details>
-              )}
-            </article>
-          ))}
+                </div>
+                {row.payments.length > 0 && (
+                  <details className="mt-4 text-sm">
+                    <summary className="cursor-pointer font-semibold">
+                      Pagos y recibos ({row.payments.length})
+                    </summary>
+                    <ul className="mt-3 space-y-2">
+                      {row.payments.map((p) => (
+                        <li
+                          key={p.id}
+                          className="flex flex-wrap items-center gap-3 rounded-xl border p-3"
+                        >
+                          <span>
+                            {p.simulated ? 'SIMULACIÓN' : 'Registro histórico'} ·{' '}
+                            {p.channel ?? 'Canal histórico'} · {humanizeSystemValue(p.status)} ·{' '}
+                            {money(p.amount, row.currency)}
+                          </span>
+                          {p.invoice && (
+                            <a
+                              className="text-blue-700 underline"
+                              href={`/api/payments/invoices/${p.id}/pdf`}
+                            >
+                              Descargar {p.simulated ? 'recibo de demostración' : 'recibo'}
+                            </a>
+                          )}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </article>
+            );
+          })}
         </>
       )}
       {!paymentsOnly && !student && tab === 'grupos' && (
@@ -618,7 +674,11 @@ export function MonographWorkspace({ paymentsOnly = false }: { paymentsOnly?: bo
         open={!!simulation}
         onClose={() => setSimulation(null)}
         title={
-          simulation?.channel === 'CAJA' ? 'Simulador de Caja local' : 'Simulador de pago virtual'
+          managesPayments
+            ? 'Registrar resultado de pago simulado'
+            : simulation?.channel === 'CAJA'
+              ? 'Simulador de Caja local'
+              : 'Simulador de pago virtual'
         }
         description="Demostración sin movimiento de dinero ni datos bancarios."
       >
