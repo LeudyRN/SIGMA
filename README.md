@@ -158,6 +158,96 @@ pnpm prisma:studio
 
 ## Desarrollo local
 
+### Acentos y UTF-8 al compartir la base de datos
+
+Los archivos del proyecto se guardan en UTF-8 (`.editorconfig`) y la conexión de la
+API exige `utf8mb4`, independientemente de la configuración regional de Windows.
+En el editor, conserve la codificación UTF-8 al guardar archivos SQL, JSON y código.
+La base y sus columnas de texto también deben usar `utf8mb4`; el SQL de referencia
+ya lo declara. Cambiar la fuente del navegador o la intercalación de MySQL no
+repara nombres que ya se guardaron como `CÃ¡lculo`.
+
+Para trasladar una base, exporte con el cliente MySQL usando un archivo directo
+(sustituya usuario y nombre de base; `-p` solicita la contraseña):
+
+```bash
+mysqldump --default-character-set=utf8mb4 --single-transaction --routines --triggers -u USUARIO -p --result-file=backup.sql NOMBRE_BASE
+mysql --default-character-set=utf8mb4 -u USUARIO -p NOMBRE_BASE
+```
+
+Dentro del cliente `mysql`, importe en la base de destino prevista:
+
+```sql
+SOURCE C:/ruta/backup.sql;
+```
+
+En PowerShell evite `Get-Content backup.sql | mysql` y la redirección de la salida
+de `mysqldump` con `>`: según la versión y la codificación de la consola, pueden
+recodificar el archivo. Use `--result-file` y `SOURCE`, o seleccione UTF-8
+explícitamente en la herramienta gráfica de exportación/importación. Un respaldo
+puede reemplazar tablas: impórtelo en una base nueva o en un destino preparado para
+restauración, nunca sobre datos que necesite conservar.
+
+En **cada máquina afectada**, desde la raíz del repositorio y con su `DATABASE_URL`
+configurada en `apps/api/.env` (o `.env` raíz), ejecute:
+
+```bash
+pnpm encoding:check
+```
+
+Este comando revisa los archivos de texto del proyecto y las columnas de texto de
+todas las tablas de la base: asignaturas, usuarios, roles, carreras, recintos,
+ofertas, notificaciones, documentos y demás módulos. Descubre el esquema de cada
+instalación automáticamente, incluyendo claves primarias compuestas. No modifica
+datos durante el diagnóstico. Puede ejecutar cada parte con `pnpm files:encoding`
+y `pnpm db:encoding`.
+
+El diagnóstico de BD usa UTF-8, informa columnas con otro juego de caracteres y
+guarda en `.tmp/encoding-<fecha>.json` los valores originales, las correcciones,
+los casos de revisión manual (`unresolved`) y las exclusiones (`skipped`). La
+consola muestra el comando exacto para aplicar el informe generado. Los informes
+pueden contener nombres y mensajes de usuarios: consérvelos de forma privada;
+`.tmp` está excluido de Git.
+Si hay conversiones correctas en el informe, aplique **ese mismo archivo**:
+
+```bash
+pnpm db:encoding --apply .tmp/encoding-<fecha>.json
+```
+
+La reparación actualiza los campos propuestos en una sola transacción, comprobando
+que el esquema permita modificarlos y que los valores coincidan con el informe.
+Si un dato cambió o una restricción falla, revierte el lote completo. Conserva
+compatibilidad con los informes anteriores de asignaturas. También recupera
+acentos y comillas dañadas dentro de textos que tienen otras letras correctas.
+
+Los identificadores, claves foráneas, enumeraciones, columnas calculadas, tablas
+sin clave primaria o sin transacciones, facturas y auditoría se reportan para
+revisión; no se reescriben automáticamente. En JSON revisa los valores de texto,
+omite las claves sensibles y señala los hallazgos para revisión de su contexto.
+Contraseñas, tokens, hashes, sesiones y valores de configuración opacos no se
+exportan ni se modifican. Los números, fechas, archivos binarios y el contenido
+de PDF/imágenes quedan fuera de la reparación de textos.
+
+El diagnóstico de archivos guarda `.tmp/files-encoding-<fecha>.json`, con las
+rutas, líneas y sugerencias. Revisa código, SQL, documentos y configuración
+versionables, detecta UTF-8 inválido y respeta las exclusiones de Git. Omite
+archivos `.env` reales, dependencias, compilaciones, código generado, pruebas y
+ejemplos intencionales de texto dañado. Las correcciones de código se revisan y
+distribuyen mediante Git; el comando no sustituye texto dentro de código ni
+reescribe migraciones históricas. Para fallar ante hallazgos en CI puede usar
+`pnpm files:encoding --check`.
+
+Conserve el informe como respaldo. Los textos con bytes perdidos (`�`) requieren
+cotejar la fuente original; el script no inventa sus letras. Después de aplicar,
+vuelva a ejecutar `pnpm encoding:check`: debe indicar cero campos reparables;
+revise por separado los hallazgos manuales y las exclusiones. Reinicie la API tras
+actualizar el código y **cierre sesión y vuelva a entrar** para renovar los nombres
+y roles guardados en la sesión. Recargue la página.
+
+Verifique las conversiones y el escáner de archivos con `pnpm test:encoding`, y la
+reparación transaccional con `pnpm test:encoding:db` (requiere MySQL y usa tablas
+temporales sin modificar los registros reales).
+
 ### Ejecutar API y web juntos
 
 Desde la raíz del repositorio:
