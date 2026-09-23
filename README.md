@@ -158,6 +158,63 @@ pnpm prisma:studio
 
 ## Desarrollo local
 
+### Acentos y UTF-8 al compartir la base de datos
+
+Los archivos del proyecto se guardan en UTF-8 (`.editorconfig`) y la conexión de la
+API exige `utf8mb4`, independientemente de la configuración regional de Windows.
+En el editor, conserve la codificación UTF-8 al guardar archivos SQL, JSON y código.
+La base y sus columnas de texto también deben usar `utf8mb4`; el SQL de referencia
+ya lo declara. Cambiar la fuente del navegador o la intercalación de MySQL no
+repara nombres que ya se guardaron como `CÃ¡lculo`.
+
+Para trasladar una base, exporte con el cliente MySQL usando un archivo directo
+(sustituya usuario y nombre de base; `-p` solicita la contraseña):
+
+```bash
+mysqldump --default-character-set=utf8mb4 --single-transaction --routines --triggers -u USUARIO -p --result-file=backup.sql NOMBRE_BASE
+mysql --default-character-set=utf8mb4 -u USUARIO -p NOMBRE_BASE
+```
+
+Dentro del cliente `mysql`, importe en la base de destino prevista:
+
+```sql
+SOURCE C:/ruta/backup.sql;
+```
+
+En PowerShell evite `Get-Content backup.sql | mysql` y la redirección de la salida
+de `mysqldump` con `>`: según la versión y la codificación de la consola, pueden
+recodificar el archivo. Use `--result-file` y `SOURCE`, o seleccione UTF-8
+explícitamente en la herramienta gráfica de exportación/importación. Un respaldo
+puede reemplazar tablas: impórtelo en una base nueva o en un destino preparado para
+restauración, nunca sobre datos que necesite conservar.
+
+En **cada máquina afectada**, desde la raíz del repositorio y con su `DATABASE_URL`
+configurada en `apps/api/.env` (o `.env` raíz), ejecute:
+
+```bash
+pnpm db:encoding
+```
+
+Este diagnóstico usa una conexión UTF-8, informa las columnas que usan otro juego
+de caracteres y revisa los nombres de `asignaturas`, que alimentan los históricos
+y planes de estudio. No modifica la BD. Guarda en `.tmp/encoding-<fecha>.json`
+los nombres originales, la propuesta y los casos que requieren revisión manual.
+Si hay conversiones correctas en el informe, aplique **ese mismo archivo**:
+
+```bash
+pnpm db:encoding --apply .tmp/encoding-<fecha>.json
+```
+
+La reparación solo actualiza los nombres propuestos de asignaturas, en una
+transacción, comprobando que no hayan cambiado desde el diagnóstico. Conserve el
+informe como respaldo. Los textos con bytes perdidos (`�`) o codificaciones mixtas
+requieren cotejar la fuente original; el script no inventa sus letras. No cambie
+la intercalación ni reimporte toda la base para reparar estos nombres. Reinicie
+la API después de actualizar el código y recargue la pantalla. Puede verificar
+las conversiones con `pnpm test:encoding` y la reparación transaccional con
+`pnpm test:encoding:db` (requiere MySQL y usa una tabla temporal sin modificar las
+asignaturas reales).
+
 ### Ejecutar API y web juntos
 
 Desde la raíz del repositorio:

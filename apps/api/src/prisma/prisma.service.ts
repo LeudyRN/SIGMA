@@ -6,9 +6,9 @@ import { PrismaClient } from '../generated/prisma/client';
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleDestroy {
   constructor(config: ConfigService) {
-    const adapter = new PrismaMariaDb(
-      config.getOrThrow<string>('DATABASE_URL'),
-    );
+    const databaseUrl = new URL(config.getOrThrow<string>('DATABASE_URL'));
+    databaseUrl.searchParams.set('charset', 'utf8mb4');
+    const adapter = new PrismaMariaDb(databaseUrl.toString());
 
     super({ adapter });
   }
