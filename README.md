@@ -192,28 +192,61 @@ En **cada máquina afectada**, desde la raíz del repositorio y con su `DATABASE
 configurada en `apps/api/.env` (o `.env` raíz), ejecute:
 
 ```bash
-pnpm db:encoding
+pnpm encoding:check
 ```
 
-Este diagnóstico usa una conexión UTF-8, informa las columnas que usan otro juego
-de caracteres y revisa los nombres de `asignaturas`, que alimentan los históricos
-y planes de estudio. No modifica la BD. Guarda en `.tmp/encoding-<fecha>.json`
-los nombres originales, la propuesta y los casos que requieren revisión manual.
+Este comando revisa los archivos de texto del proyecto y las columnas de texto de
+todas las tablas de la base: asignaturas, usuarios, roles, carreras, recintos,
+ofertas, notificaciones, documentos y demás módulos. Descubre el esquema de cada
+instalación automáticamente, incluyendo claves primarias compuestas. No modifica
+datos durante el diagnóstico. Puede ejecutar cada parte con `pnpm files:encoding`
+y `pnpm db:encoding`.
+
+El diagnóstico de BD usa UTF-8, informa columnas con otro juego de caracteres y
+guarda en `.tmp/encoding-<fecha>.json` los valores originales, las correcciones,
+los casos de revisión manual (`unresolved`) y las exclusiones (`skipped`). La
+consola muestra el comando exacto para aplicar el informe generado. Los informes
+pueden contener nombres y mensajes de usuarios: consérvelos de forma privada;
+`.tmp` está excluido de Git.
 Si hay conversiones correctas en el informe, aplique **ese mismo archivo**:
 
 ```bash
 pnpm db:encoding --apply .tmp/encoding-<fecha>.json
 ```
 
-La reparación solo actualiza los nombres propuestos de asignaturas, en una
-transacción, comprobando que no hayan cambiado desde el diagnóstico. Conserve el
-informe como respaldo. Los textos con bytes perdidos (`�`) o codificaciones mixtas
-requieren cotejar la fuente original; el script no inventa sus letras. No cambie
-la intercalación ni reimporte toda la base para reparar estos nombres. Reinicie
-la API después de actualizar el código y recargue la pantalla. Puede verificar
-las conversiones con `pnpm test:encoding` y la reparación transaccional con
-`pnpm test:encoding:db` (requiere MySQL y usa una tabla temporal sin modificar las
-asignaturas reales).
+La reparación actualiza los campos propuestos en una sola transacción, comprobando
+que el esquema permita modificarlos y que los valores coincidan con el informe.
+Si un dato cambió o una restricción falla, revierte el lote completo. Conserva
+compatibilidad con los informes anteriores de asignaturas. También recupera
+acentos y comillas dañadas dentro de textos que tienen otras letras correctas.
+
+Los identificadores, claves foráneas, enumeraciones, columnas calculadas, tablas
+sin clave primaria o sin transacciones, facturas y auditoría se reportan para
+revisión; no se reescriben automáticamente. En JSON revisa los valores de texto,
+omite las claves sensibles y señala los hallazgos para revisión de su contexto.
+Contraseñas, tokens, hashes, sesiones y valores de configuración opacos no se
+exportan ni se modifican. Los números, fechas, archivos binarios y el contenido
+de PDF/imágenes quedan fuera de la reparación de textos.
+
+El diagnóstico de archivos guarda `.tmp/files-encoding-<fecha>.json`, con las
+rutas, líneas y sugerencias. Revisa código, SQL, documentos y configuración
+versionables, detecta UTF-8 inválido y respeta las exclusiones de Git. Omite
+archivos `.env` reales, dependencias, compilaciones, código generado, pruebas y
+ejemplos intencionales de texto dañado. Las correcciones de código se revisan y
+distribuyen mediante Git; el comando no sustituye texto dentro de código ni
+reescribe migraciones históricas. Para fallar ante hallazgos en CI puede usar
+`pnpm files:encoding --check`.
+
+Conserve el informe como respaldo. Los textos con bytes perdidos (`�`) requieren
+cotejar la fuente original; el script no inventa sus letras. Después de aplicar,
+vuelva a ejecutar `pnpm encoding:check`: debe indicar cero campos reparables;
+revise por separado los hallazgos manuales y las exclusiones. Reinicie la API tras
+actualizar el código y **cierre sesión y vuelva a entrar** para renovar los nombres
+y roles guardados en la sesión. Recargue la página.
+
+Verifique las conversiones y el escáner de archivos con `pnpm test:encoding`, y la
+reparación transaccional con `pnpm test:encoding:db` (requiere MySQL y usa tablas
+temporales sin modificar los registros reales).
 
 ### Ejecutar API y web juntos
 

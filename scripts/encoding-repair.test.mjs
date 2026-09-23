@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { repairEncoding } from './encoding-repair.mjs';
+import { repairEncoding, repairTextEncoding } from './encoding-repair.mjs';
 
 test('recovers Spanish subject names without losing accents', () => {
   for (const name of [
@@ -15,6 +15,31 @@ test('recovers Spanish subject names without losing accents', () => {
     assert.equal(repairEncoding(broken), name);
     assert.equal(repairEncoding(Buffer.from(broken).toString('latin1')), name);
     assert.equal(repairEncoding(name), null);
+  }
+});
+
+test('repairs mixed Unicode, roles, careers and repeated encoding', () => {
+  for (const name of [
+    'Secretaría UCOTESIS',
+    'Licenciatura en Informática 40601',
+    'Álgebra y Ética',
+  ]) {
+    const broken = Buffer.from(name).toString('latin1');
+    assert.equal(repairTextEncoding(broken), name);
+    assert.equal(repairTextEncoding(Buffer.from(broken).toString('latin1')), name);
+  }
+  assert.equal(repairTextEncoding('CÃ¡lculo y Ética 😀'), 'Cálculo y Ética 😀');
+  assert.equal(repairTextEncoding('BioÃ©tica â€“ Español'), 'Bioética – Español');
+  for (const valid of [
+    'Secretaría',
+    'Informática',
+    'AÑO',
+    '中文 😀',
+    'Ã',
+    'C�lculo',
+    'CÃ¡lculo �',
+  ]) {
+    assert.equal(repairTextEncoding(valid), null);
   }
 });
 

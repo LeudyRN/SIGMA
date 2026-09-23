@@ -535,7 +535,7 @@ function clean(value?: string) {
 }
 function requireManualCode(value?: string) {
   const code = value?.trim().toUpperCase();
-  if (!code) throw new BadRequestException('El cÃ³digo es obligatorio.');
+  if (!code) throw new BadRequestException('El código es obligatorio.');
   return code;
 }
 export function nextSequentialCode(

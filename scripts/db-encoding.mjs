@@ -2,8 +2,8 @@ import { loadEnvFile } from 'node:process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import mysql from 'mysql2/promise';
-import { inspectEncoding, repairEncoding } from './encoding-repair.mjs';
 import { applyEncodingRepairs } from './apply-encoding-repairs.mjs';
+import { scanDatabaseEncoding } from './scan-database-encoding.mjs';
 
 const args = process.argv.slice(2);
 if (args.length && (args.length !== 2 || args[0] !== '--apply')) {
@@ -46,19 +46,10 @@ try {
     const report = JSON.parse(await readFile(resolve(args[1]), 'utf8'));
     await applyEncodingRepairs(connection, report);
     console.log(
-      `Corregidas ${report.changes.length} asignaturas. El informe conserva los nombres originales.`,
+      `Corregidos ${report.changes.length} campos de texto. El informe conserva los valores originales.`,
     );
   } else {
-    const [subjects] = await connection.query(
-      'SELECT CAST(id_asignatura AS CHAR) AS id, codigo AS code, nombre AS name FROM asignaturas ORDER BY id_asignatura',
-    );
-    const changes = [];
-    const unresolved = [];
-    for (const subject of subjects) {
-      const after = repairEncoding(subject.name);
-      if (after) changes.push({ id: subject.id, code: subject.code, before: subject.name, after });
-      else if (inspectEncoding(subject.name)) unresolved.push(subject);
-    }
+    const scan = await scanDatabaseEncoding(connection);
     await mkdir(resolve('.tmp'), { recursive: true });
     const reportPath = resolve('.tmp', `encoding-${Date.now()}.json`);
     await writeFile(
@@ -69,20 +60,26 @@ try {
           createdAt: new Date().toISOString(),
           settings,
           columns,
-          changes,
-          unresolved,
+          ...scan,
         },
         null,
         2,
       ) + '\n',
       { encoding: 'utf8', flag: 'wx' },
     );
-    console.table(changes);
+    console.table(scan.summary);
     console.log(
-      `${subjects.length} asignaturas revisadas; ${changes.length} reparables; ${unresolved.length} requieren revisión manual.`,
+      `${scan.summary.length} tablas revisadas; ${scan.changes.length} campos reparables; ${scan.unresolved.length} requieren revisión manual; ${scan.skipped.length} campos protegidos excluidos.`,
     );
-    console.log(`Informe y respaldo de nombres originales: ${reportPath}`);
+    console.log(`Informe y respaldo de valores originales: ${reportPath}`);
     console.log('No se modificó la base de datos.');
+    if (scan.changes.length)
+      console.log(
+        `Para aplicar las correcciones revisadas:\npnpm db:encoding --apply "${reportPath}"`,
+      );
+    console.log(
+      'Después de aplicar: pnpm db:encoding. Cierre sesión y vuelva a entrar para renovar nombres y roles.',
+    );
   }
 } catch (error) {
   if (connection) await connection.rollback().catch(() => {});

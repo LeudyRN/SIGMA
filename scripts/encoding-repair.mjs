@@ -34,3 +34,46 @@ export function repairEncoding(value) {
   }
   return result === value || inspectEncoding(result) ? null : result;
 }
+
+// Decode only complete mojibake byte sequences, preserving valid accents and
+// non-Latin text surrounding them. A whole-field conversion would lose those.
+export function repairTextEncoding(value) {
+  let result = value;
+  const byteOf = (character) => WINDOWS_1252.get(character) ?? character.codePointAt(0);
+  for (let pass = 0; pass < 3; pass += 1) {
+    const characters = [...result];
+    let next = '';
+    for (let index = 0; index < characters.length; index += 1) {
+      const first = byteOf(characters[index]);
+      const length =
+        first >= 0xc2 && first <= 0xdf
+          ? 2
+          : first >= 0xe0 && first <= 0xef
+            ? 3
+            : first >= 0xf0 && first <= 0xf4
+              ? 4
+              : 0;
+      const part = characters.slice(index, index + length);
+      const bytes = part.map(byteOf);
+      let decoded = null;
+      if (
+        length &&
+        part.length === length &&
+        bytes.slice(1).every((byte) => byte >= 0x80 && byte <= 0xbf)
+      ) {
+        try {
+          decoded = decoder.decode(Uint8Array.from(bytes));
+        } catch {
+          /* Keep incomplete or invalid text unchanged. */
+        }
+      }
+      if (decoded !== null) {
+        next += decoded;
+        index += length - 1;
+      } else next += characters[index];
+    }
+    if (next === result) break;
+    result = next;
+  }
+  return result !== value && !inspectEncoding(result) ? result : null;
+}
