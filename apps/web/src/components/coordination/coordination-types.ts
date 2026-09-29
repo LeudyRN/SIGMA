@@ -34,6 +34,7 @@ export interface Submission {
   reviewedAt: string | null;
 }
 export interface Project {
+  registeredAdvisors?: { name: string; participation: string }[];
   id: string;
   title: string;
   code: string;

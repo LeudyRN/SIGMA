@@ -317,8 +317,14 @@ export function CoordinationWorkspace({ initialTab = 'seguimiento' }: { initialT
                             : `Respuesta media en últimas versiones revisadas: ${p.progress.averageResponseHours} horas.`}
                         </p>
                         <p className="mt-3 text-xs text-slate-600">
-                          {p.teachers.length
-                            ? p.teachers.map((t) => `${t.name} (${t.role})`).join(' · ')
+                          {p.teachers.length || p.registeredAdvisors?.length
+                            ? [
+                                ...p.teachers.map((t) => `${t.name} (${t.role})`),
+                                ...(p.registeredAdvisors ?? []).map(
+                                  (advisor) =>
+                                    `${advisor.name} (${humanizeSystemValue(advisor.participation)})`,
+                                ),
+                              ].join(' · ')
                             : 'Sin asesores ni evaluadores asignados.'}
                         </p>
                         <Button

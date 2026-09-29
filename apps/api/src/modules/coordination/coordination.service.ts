@@ -37,6 +37,7 @@ export function academicId(value: string) {
   return BigInt(value);
 }
 const projectInclude = {
+  asesores_registrados: { where: { activo: true } },
   inscripciones: {
     include: {
       ofertas: true,
@@ -388,6 +389,10 @@ export class CoordinationService {
           typeId: t.id_tipo_participacion.toString(),
           rationale: t.criterio_asignacion,
           complexity: t.complejidad,
+        })),
+        registeredAdvisors: p.asesores_registrados.map((advisor) => ({
+          name: advisor.nombre,
+          participation: advisor.participacion,
         })),
         progress: projectProgress(
           p.id_proyecto.toString(),

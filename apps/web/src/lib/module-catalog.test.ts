@@ -2,6 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { allModules, canAccessModule, findModuleBySlug, moduleCatalog } from './module-catalog';
 
 describe('module catalog', () => {
+  it('reserves advisor registration for coordination and secretary staff', () => {
+    const permissions = ['COORDINACION_ACADEMICA_LEER', 'PROYECTOS_PARTICIPAR'];
+    for (const code of ['SECRETARIA', 'COORDINADOR', 'COORDINADOR_MONOGRAFICO'])
+      expect(canAccessModule('asesores-jurados', { roles: [{ code }], permissions })).toBe(true);
+    for (const code of ['ASESOR', 'JURADO', 'ESTUDIANTE'])
+      expect(canAccessModule('asesores-jurados', { roles: [{ code }], permissions })).toBe(false);
+  });
   it('keeps every planned area visible with unique routes', () => {
     expect(moduleCatalog.length).toBeGreaterThanOrEqual(9);
     expect(allModules.length).toBeGreaterThanOrEqual(35);

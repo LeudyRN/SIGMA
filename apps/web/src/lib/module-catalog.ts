@@ -289,7 +289,7 @@ export const moduleCatalog: ModuleGroup[] = [
       {
         slug: 'asesores-jurados',
         label: 'Asesores y jurados',
-        description: 'Asignación y participación docente en proyectos.',
+        description: 'Registro por Coordinación y consulta de asesores por Secretaría.',
         status: 'available',
       },
     ],
@@ -360,7 +360,7 @@ const MODULE_PERMISSIONS: Record<string, string[]> = {
   facturas: ['PAGOS_PROPIOS_GESTIONAR', 'PAGOS_GESTIONAR'],
   'proyectos-grado': ['PROYECTOS_PARTICIPAR', 'PROYECTOS_GESTIONAR'],
   docentes: ['PROYECTOS_GESTIONAR'],
-  'asesores-jurados': ['PROYECTOS_PARTICIPAR', 'PROYECTOS_GESTIONAR'],
+  'asesores-jurados': ['COORDINACION_ACADEMICA_LEER'],
   configuraciones: ['GOBIERNO_GESTIONAR'],
   auditoria: ['GOBIERNO_GESTIONAR'],
 };
@@ -374,6 +374,15 @@ export function canAccessModule(slug: string, user: ModuleAccessUser): boolean {
   if (['configuraciones', 'estados-inscripcion', 'requisitos', 'modalidades'].includes(slug))
     return false;
   if (user.roles.some((role) => role.code === 'ADMIN')) return true;
+  if (
+    slug === 'asesores-jurados' &&
+    !user.roles.some((role) =>
+      ['COORDINADOR', 'ENCARGADO', 'COORDINADOR_MONOGRAFICO', 'SECRETARIA', 'OFICINISTA'].includes(
+        role.code,
+      ),
+    )
+  )
+    return false;
   const required = MODULE_PERMISSIONS[slug] ?? [];
   return required.some((permission) => user.permissions.includes(permission));
 }
