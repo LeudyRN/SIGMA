@@ -1,4 +1,5 @@
 import { CoordinationWorkspace } from '@/components/coordination/coordination-workspace';
+import { ProjectAdvisorsPanel } from '@/components/coordination/project-advisors-panel';
 import { MonographWorkspace } from '@/components/monograph/monograph-workspace';
 import type { Metadata } from 'next';
 import { ArrowLeft, Boxes, CheckCircle2, Clock3, Database, FileCode2 } from 'lucide-react';
@@ -73,7 +74,7 @@ export default async function ModulePlanningPage({ params, searchParams }: Modul
   if (item.slug === 'inscripciones') return <RoleAwareProcessPanel mode="enrollments" />;
   if (item.slug === 'pagos') return <MonographWorkspace paymentsOnly />;
   if (item.slug === 'coordinacion-academica') return <CoordinationWorkspace />;
-  if (item.slug === 'asesores-jurados') return <CoordinationWorkspace initialTab="personal" />;
+  if (item.slug === 'asesores-jurados') return <ProjectAdvisorsPanel />;
   if (item.slug === 'monograficos') {
     const { inscripcion, tab } = await searchParams;
     const initialSearch = typeof inscripcion === 'string' ? inscripcion : '';

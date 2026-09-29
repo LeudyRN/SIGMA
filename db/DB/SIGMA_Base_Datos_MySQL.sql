@@ -1550,3 +1550,28 @@ INSERT IGNORE INTO rol_permisos (id_rol, id_permiso)
 SELECT r.id_rol, p.id_permiso
 FROM roles r CROSS JOIN permisos p
 WHERE r.codigo = 'SECRETARIA' AND p.codigo = 'MONOGRAFICO_PAGOS_GESTIONAR';
+
+-- Registro administrativo de asesores elegido por Coordinación.
+CREATE TABLE `asesores_proyecto` (
+  `id_asesor` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+  `id_proyecto` BIGINT UNSIGNED NOT NULL,
+  `nombre` VARCHAR(200) NOT NULL,
+  `email` VARCHAR(190) NULL,
+  `telefono` VARCHAR(30) NULL,
+  `especialidad` VARCHAR(300) NULL,
+  `participacion` VARCHAR(20) NOT NULL,
+  `observaciones` VARCHAR(1500) NULL,
+  `activo` BOOLEAN NOT NULL DEFAULT true,
+  `version` INT UNSIGNED NOT NULL DEFAULT 1,
+  `registrado_por` BIGINT UNSIGNED NOT NULL,
+  `actualizado_por` BIGINT UNSIGNED NOT NULL,
+  `created_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` TIMESTAMP(0) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (`id_asesor`),
+  INDEX `idx_asesores_proyecto_activo` (`id_proyecto`, `activo`),
+  INDEX `idx_asesor_registrado` (`registrado_por`),
+  INDEX `idx_asesor_actualizado` (`actualizado_por`),
+  CONSTRAINT `fk_asesor_proyecto` FOREIGN KEY (`id_proyecto`) REFERENCES `proyectos_grado` (`id_proyecto`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_asesor_registrado` FOREIGN KEY (`registrado_por`) REFERENCES `usuarios` (`id_usuario`) ON DELETE RESTRICT ON UPDATE CASCADE,
+  CONSTRAINT `fk_asesor_actualizado` FOREIGN KEY (`actualizado_por`) REFERENCES `usuarios` (`id_usuario`) ON DELETE RESTRICT ON UPDATE CASCADE
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;

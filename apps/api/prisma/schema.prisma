@@ -697,6 +697,7 @@ model proyecto_docentes {
 }
 
 model proyectos_grado {
+  asesores_registrados asesores_proyecto[]
   hitos_academicos    hitos_academicos[]
   entregas_academicas entregas_academicas[]
 
@@ -865,6 +866,8 @@ model usuario_roles {
 }
 
 model usuarios {
+  asesores_registrados asesores_proyecto[] @relation("asesor_registrado_por")
+  asesores_actualizados asesores_proyecto[] @relation("asesor_actualizado_por")
   alertas_academicas alertas_academicas[]
 
   ofertas_coordinadas                                ofertas[]                       @relation("oferta_coordinador")
@@ -908,6 +911,29 @@ model usuarios {
 
   @@index([estado], map: "idx_usuarios_estado")
   @@index([apellidos, nombres], map: "idx_usuarios_nombre")
+}
+
+model asesores_proyecto {
+  id_asesor BigInt @id @default(autoincrement()) @db.UnsignedBigInt
+  id_proyecto BigInt @db.UnsignedBigInt
+  nombre String @db.VarChar(200)
+  email String? @db.VarChar(190)
+  telefono String? @db.VarChar(30)
+  especialidad String? @db.VarChar(300)
+  participacion String @db.VarChar(20)
+  observaciones String? @db.VarChar(1500)
+  activo Boolean @default(true)
+  version Int @default(1) @db.UnsignedInt
+  registrado_por BigInt @db.UnsignedBigInt
+  actualizado_por BigInt @db.UnsignedBigInt
+  created_at DateTime @default(now()) @db.Timestamp(0)
+  updated_at DateTime @default(now()) @updatedAt @db.Timestamp(0)
+  proyecto proyectos_grado @relation(fields: [id_proyecto], references: [id_proyecto], onDelete: Restrict, map: "fk_asesor_proyecto")
+  registrado_por_usuario usuarios @relation("asesor_registrado_por", fields: [registrado_por], references: [id_usuario], onDelete: Restrict, map: "fk_asesor_registrado")
+  actualizado_por_usuario usuarios @relation("asesor_actualizado_por", fields: [actualizado_por], references: [id_usuario], onDelete: Restrict, map: "fk_asesor_actualizado")
+  @@index([id_proyecto, activo], map: "idx_asesores_proyecto_activo")
+  @@index([registrado_por], map: "idx_asesor_registrado")
+  @@index([actualizado_por], map: "idx_asesor_actualizado")
 }
 
 model validaciones_requisitos {

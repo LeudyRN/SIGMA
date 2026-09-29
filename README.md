@@ -517,7 +517,22 @@ El resumen general usa `/dashboard/insights` para pendientes actuales, accesos d
 
 ### Coordinación académica — entrevista de septiembre de 2026
 
-`/app/coordinacion-academica` reúne cinco áreas: seguimiento de grupos, cronograma, trabajos y revisiones, personal académico y expedientes docentes. `/app/asesores-jurados` abre ahora ese espacio en Personal académico. El permiso `COORDINACION_ACADEMICA_LEER` habilita la entrada; la API comprueba además el rol, la designación del curso, la asignación activa o la pertenencia al grupo en cada operación.
+`/app/coordinacion-academica` reúne cinco áreas: seguimiento de grupos, cronograma, trabajos y revisiones, personal académico y expedientes docentes. El permiso `COORDINACION_ACADEMICA_LEER` habilita la entrada; la API comprueba además el rol, la designación del curso, la asignación activa o la pertenencia al grupo en cada operación.
+
+`/app/asesores-jurados` es el registro administrativo de los profesionales elegidos
+por Coordinación. Permite registrar nombre, participación, correo, teléfono,
+especialidad y observaciones por proyecto, sin crear una cuenta ni requerir un
+perfil académico del asesor. Secretaría y Oficinista pueden consultar; Coordinación,
+Encargado y Administración gestionan los registros. El coordinador de monográfico
+solo modifica los proyectos de sus cursos designados. Las participaciones pueden
+marcarse como no vigentes, sin borrar su registro. Se auditan las modificaciones y
+se comprueba la versión para evitar sobrescribir una edición concurrente.
+
+Las asignaciones docentes existentes se conservan y aparecen en la misma consulta.
+El registro de contacto no concede acceso para revisar entregas o calificar.
+Antes de publicar esta actualización, aplique `pnpm prisma:deploy` y ejecute
+`pnpm prisma:generate`; la migración `20260928180000_registro_asesores_proyecto`
+añade la tabla sin transformar ni eliminar datos anteriores.
 
 - UCOTESIS registra la designación recibida de la Escuela de la carrera, con docente, fecha y referencia del oficio. El coordinador designado administra exclusivamente sus cursos; los responsables institucionales pueden administrar el conjunto. La pantalla de grupos conserva WhatsApp y presupuestos, pero ya no cambia designaciones.
 - Los docentes completan especialidades, disponibilidad y límites de grupos/estudiantes. Cada asignación registra complejidad, justificación y confirmación del horario. El servidor bloquea sobrecarga con bloqueo transaccional del docente y cuenta grupos únicos activos. El retiro es lógico y conserva las revisiones. El endpoint antiguo de asignación responde 410 para conducir al flujo con criterios.
