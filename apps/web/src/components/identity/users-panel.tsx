@@ -2,7 +2,7 @@
 
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { LoaderCircle, Pencil, Plus, Trash2, UserRoundCog } from 'lucide-react';
+import { Check, LoaderCircle, Pencil, Plus, Trash2, UserRoundCog, X } from 'lucide-react';
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -10,6 +10,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
+import { TableActionButton, TableActions } from '@/components/ui/table-actions';
 import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
 import { apiFetch, readApiError } from '@/lib/api';
 import { humanizeSystemValue } from '@/lib/humanize-system-value';
@@ -372,55 +373,54 @@ export function UsersPanel() {
                         }).format(new Date(user.lastAccessAt))
                       : 'Nunca'}
                   </td>
-                  <td className="p-4">
-                    <div className="flex flex-wrap gap-3">
-                      <button
-                        type="button"
+                  <td className="w-px p-4 align-middle whitespace-nowrap">
+                    <TableActions>
+                      <TableActionButton
+                        label="Editar"
                         onClick={() => openEdit(user)}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-700"
+                        className="text-blue-700"
                       >
-                        <Pencil className="size-4" /> Editar
-                      </button>
-                      <button
-                        type="button"
+                        <Pencil className="size-4" />
+                      </TableActionButton>
+                      <TableActionButton
+                        label={user.status === 'ACTIVO' ? 'Desactivar' : 'Activar'}
                         onClick={() =>
                           updateUser.mutate({
                             id: user.id,
                             body: { status: user.status === 'ACTIVO' ? 'INACTIVO' : 'ACTIVO' },
                           })
                         }
-                        className="inline-flex items-center gap-1 text-xs font-bold text-slate-700"
+                        className="text-slate-700"
                       >
                         <UserRoundCog className="size-4" />
-                        {user.status === 'ACTIVO' ? 'Desactivar' : 'Activar'}
-                      </button>
+                      </TableActionButton>
                       {confirmDelete === user.id ? (
                         <>
-                          <button
-                            type="button"
+                          <TableActionButton
+                            label="Confirmar"
                             onClick={() => removeUser.mutate(user.id)}
-                            className="text-xs font-bold text-red-700"
+                            className="text-red-700"
                           >
-                            Confirmar
-                          </button>
-                          <button
-                            type="button"
+                            <Check className="size-4" />
+                          </TableActionButton>
+                          <TableActionButton
+                            label="Cancelar"
                             onClick={() => setConfirmDelete(null)}
-                            className="text-xs font-bold text-slate-500"
+                            className="text-slate-500"
                           >
-                            Cancelar
-                          </button>
+                            <X className="size-4" />
+                          </TableActionButton>
                         </>
                       ) : (
-                        <button
-                          type="button"
+                        <TableActionButton
+                          label="Eliminar"
                           onClick={() => setConfirmDelete(user.id)}
-                          className="inline-flex items-center gap-1 text-xs font-bold text-red-700"
+                          className="text-red-700"
                         >
-                          <Trash2 className="size-4" /> Eliminar
-                        </button>
+                          <Trash2 className="size-4" />
+                        </TableActionButton>
                       )}
-                    </div>
+                    </TableActions>
                   </td>
                 </tr>
               ))}

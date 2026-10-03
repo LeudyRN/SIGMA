@@ -25,8 +25,8 @@ export function TableFilters({
 }: TableFiltersProps) {
   return (
     <div className="border-b bg-slate-50/70 p-3 sm:p-4">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-end">
-        <label className="min-w-0 flex-1">
+      <div className="flex flex-col gap-3">
+        <label className="min-w-0">
           <span className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-600">
             <Search aria-hidden="true" className="size-3.5" /> Buscar
           </span>
@@ -39,11 +39,11 @@ export function TableFilters({
           />
         </label>
         {children && (
-          <div className="grid min-w-0 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:flex xl:items-end">
+          <div className="grid min-w-0 grid-cols-[repeat(auto-fit,minmax(min(100%,10rem),1fr))] items-end gap-3">
             {children}
           </div>
         )}
-        <div className="flex items-center justify-between gap-3 xl:pb-0.5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           {onClear && (
             <Button
               type="button"
@@ -83,7 +83,7 @@ export function FilterSelect({
       <select
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="h-11 w-full min-w-40 rounded-xl border bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+        className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-sm outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

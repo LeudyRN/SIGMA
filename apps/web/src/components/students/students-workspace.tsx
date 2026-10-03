@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
+import { TableActionButton, TableActions } from '@/components/ui/table-actions';
 import { SearchableSelect } from '@/components/ui/searchable-select';
 import { FilterSelect, TableFilters } from '@/components/ui/table-filters';
 import { apiFetch, readApiError } from '@/lib/api';
@@ -450,7 +451,9 @@ function Profiles({
                 <th className="p-4">Rol</th>
                 <th className="p-4">Carreras</th>
                 <th className="p-4">Estado</th>
-                <th className="p-4">Acción</th>
+                <th scope="col" className="p-4">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -464,23 +467,23 @@ function Profiles({
                   <td className="p-4">{student.role?.name ?? 'Sin rol'}</td>
                   <td className="p-4">{student.careers.length}</td>
                   <td className="p-4">{humanizeSystemValue(student.status)}</td>
-                  <td className="p-4">
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
+                  <td className="w-px p-4 align-middle whitespace-nowrap">
+                    <TableActions>
+                      <TableActionButton
+                        label="Editar"
                         onClick={() => editProfile(student)}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-blue-700"
+                        className="text-blue-700"
                       >
-                        <Pencil className="size-4" /> Editar
-                      </button>
-                      <button
-                        type="button"
+                        <Pencil className="size-4" />
+                      </TableActionButton>
+                      <TableActionButton
+                        label="Desactivar"
                         onClick={() => deactivate.mutate(student.id)}
-                        className="inline-flex items-center gap-1 text-xs font-bold text-red-700"
+                        className="text-red-700"
                       >
-                        <Trash2 className="size-4" /> Desactivar
-                      </button>
-                    </div>
+                        <Trash2 className="size-4" />
+                      </TableActionButton>
+                    </TableActions>
                   </td>
                 </tr>
               ))}
@@ -1109,7 +1112,9 @@ function History({
                 <th className="p-4">Período</th>
                 <th className="p-4">Calificación</th>
                 <th className="p-4">Resultado</th>
-                <th className="p-4"></th>
+                <th scope="col" className="p-4">
+                  Acciones
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -1129,25 +1134,23 @@ function History({
                     )}
                   </td>
                   <td className="p-4 font-semibold">{humanizeSystemValue(item.status)}</td>
-                  <td className="p-4">
-                    <div className="flex gap-3">
-                      <button
-                        type="button"
+                  <td className="w-px p-4 align-middle whitespace-nowrap">
+                    <TableActions>
+                      <TableActionButton
+                        label={`Editar ${item.subjectCode}`}
                         onClick={() => editHistory(item)}
                         className="text-blue-700"
-                        aria-label={`Editar ${item.subjectCode}`}
                       >
                         <Pencil className="size-4" />
-                      </button>
-                      <button
-                        type="button"
+                      </TableActionButton>
+                      <TableActionButton
+                        label={`Eliminar ${item.subjectCode}`}
                         onClick={() => remove.mutate(item.id)}
                         className="text-red-700"
-                        aria-label={`Eliminar ${item.subjectCode}`}
                       >
                         <Trash2 className="size-4" />
-                      </button>
-                    </div>
+                      </TableActionButton>
+                    </TableActions>
                   </td>
                 </tr>
               ))}

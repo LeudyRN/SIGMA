@@ -69,7 +69,7 @@ export function Pagination({
           aria-label="Página anterior"
           disabled={page <= 1}
           onClick={() => onPageChange(page - 1)}
-          className="size-9"
+          className="size-9 px-0"
         >
           <ChevronLeft aria-hidden="true" className="size-4" />
         </Button>
@@ -83,7 +83,7 @@ export function Pagination({
           aria-label="Página siguiente"
           disabled={page >= pageCount}
           onClick={() => onPageChange(page + 1)}
-          className="size-9"
+          className="size-9 px-0"
         >
           <ChevronRight aria-hidden="true" className="size-4" />
         </Button>

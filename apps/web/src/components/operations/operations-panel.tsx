@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import Link from 'next/link';
 import {
   CheckCircle2,
+  ClipboardList,
   Download,
   Eye,
   LoaderCircle,
@@ -21,6 +22,7 @@ import { DocumentRequestsPanel } from './document-requests-panel';
 import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination, usePagination } from '@/components/ui/pagination';
+import { TableActionButton, TableActions } from '@/components/ui/table-actions';
 import { apiFetch, apiJson, readApiError } from '@/lib/api';
 import { normalizeTechnicalCode } from '@/lib/catalog-code';
 import { humanizeSystemValue } from '@/lib/humanize-system-value';
@@ -363,8 +365,8 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
         )}
       {(mode === 'transacciones' || mode === 'conciliaciones') && <FinancialFlowHelp mode={mode} />}
       <div className="overflow-hidden rounded-3xl border bg-white shadow-sm">
-        <div className="flex flex-col gap-3 border-b bg-slate-50 p-3 sm:flex-row sm:items-end sm:p-4">
-          <label className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-end gap-3 border-b bg-slate-50 p-3 sm:p-4">
+          <label className="min-w-0 flex-[1_1_16rem]">
             <span className="mb-1.5 flex items-center gap-1.5 text-xs font-bold text-slate-600">
               <Search className="size-3.5" /> Buscar
             </span>
@@ -380,12 +382,12 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
             />
           </label>
           {statusOptions.length > 1 && (
-            <label>
+            <label className="min-w-0 flex-[1_1_11rem]">
               <span className="mb-1.5 block text-xs font-bold text-slate-600">Estado</span>
               <select
                 value={status}
                 onChange={(event) => setStatus(event.target.value)}
-                className="h-11 min-w-44 rounded-xl border bg-white px-3 text-sm"
+                className="h-11 w-full min-w-0 rounded-xl border bg-white px-3 text-sm"
               >
                 <option value="">Todos</option>
                 {statusOptions.map((value) => (
@@ -394,7 +396,12 @@ export function OperationsPanel({ mode }: { mode: OperationsMode }) {
               </select>
             </label>
           )}
-          <Button type="button" variant="outline" onClick={() => void source.refetch()}>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => void source.refetch()}
+          >
             <RefreshCw className="size-4" /> Actualizar
           </Button>
         </div>
@@ -758,7 +765,9 @@ function DataTable({
                 {column.label}
               </th>
             ))}
-            <th className="px-5 py-3 text-right">Acciones</th>
+            <th scope="col" className="px-5 py-3">
+              Acciones
+            </th>
           </tr>
         </thead>
         <tbody className="divide-y">
@@ -769,76 +778,79 @@ function DataTable({
                   {renderValue(readPath(item, column.key))}
                 </td>
               ))}
-              <td className="px-5 py-3">
-                <div className="flex justify-end gap-2">
+              <td className="w-px px-5 py-3 align-middle whitespace-nowrap">
+                <TableActions>
                   {mode === 'inscripciones' && canManage && (
-                    <Link
-                      href={`/app/monograficos?inscripcion=${encodeURIComponent(String(item.code ?? ''))}`}
-                      className="rounded-lg px-3 py-2 text-sm font-semibold text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-2"
-                    >
-                      Gestionar expediente y pago
-                    </Link>
+                    <TableActionButton asChild label="Gestionar expediente y pago">
+                      <Link
+                        href={`/app/monograficos?inscripcion=${encodeURIComponent(String(item.code ?? ''))}`}
+                      >
+                        <ClipboardList className="size-4" />
+                      </Link>
+                    </TableActionButton>
                   )}
                   {rowActions(mode, item, canManage, isStudent).map((rowAction) => (
-                    <Button
+                    <TableActionButton
                       key={rowAction.kind}
-                      size="sm"
-                      variant={rowAction.kind === 'delete' ? 'outline' : 'ghost'}
+                      label={rowAction.label}
+                      className={rowAction.kind === 'delete' ? 'text-red-700' : 'text-slate-700'}
                       onClick={() => onAction(rowAction.kind, item)}
-                      title={rowAction.label}
                     >
                       {rowAction.kind === 'view' ? (
                         <Eye className="size-4" />
                       ) : rowAction.kind === 'edit' || rowAction.kind === 'status' ? (
                         <Pencil className="size-4" />
+                      ) : rowAction.kind === 'validate-document' ||
+                        rowAction.kind === 'close-reconciliation' ? (
+                        <CheckCircle2 className="size-4" />
+                      ) : rowAction.kind === 'reject-document' ? (
+                        <XCircle className="size-4" />
                       ) : (
                         <Trash2 className="size-4" />
                       )}
-                      <span className="sr-only xl:not-sr-only">{rowAction.label}</span>
-                    </Button>
+                    </TableActionButton>
                   ))}
                   {canManage && mode === 'pagos' && item.status === 'PENDIENTE' && (
                     <>
-                      <Button size="sm" onClick={() => onReview(item, 'VALIDADO')}>
-                        <CheckCircle2 className="size-4" /> Validar
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
+                      <TableActionButton
+                        label="Validar"
+                        className="text-emerald-700"
+                        onClick={() => onReview(item, 'VALIDADO')}
+                      >
+                        <CheckCircle2 className="size-4" />
+                      </TableActionButton>
+                      <TableActionButton
+                        label="Rechazar"
+                        className="text-red-700"
                         onClick={() => onReview(item, 'RECHAZADO')}
                       >
-                        <XCircle className="size-4" /> Rechazar
-                      </Button>
+                        <XCircle className="size-4" />
+                      </TableActionButton>
                     </>
                   )}
                   {mode === 'pagos' && Boolean(item.proof) && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
+                    <TableActionButton
+                      label="Comprobante"
                       onClick={() =>
                         onDownload(`/payments/${item.id}/proof`, `comprobante-${item.id}`)
                       }
                     >
-                      <Download className="size-4" /> Comprobante
-                    </Button>
+                      <Download className="size-4" />
+                    </TableActionButton>
                   )}
                   {mode === 'facturas' && (
-                    <Button
-                      type="button"
-                      size="sm"
+                    <TableActionButton
+                      label="PDF"
                       onClick={() =>
                         onDownload(`/payments/invoices/${item.id}/pdf`, `factura-${item.id}.pdf`)
                       }
                     >
-                      <Download className="size-4" /> PDF
-                    </Button>
+                      <Download className="size-4" />
+                    </TableActionButton>
                   )}
                   {mode === 'documentos' && item.downloadAvailable !== false && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
+                    <TableActionButton
+                      label="Descargar"
                       onClick={() =>
                         onDownload(
                           isStudent
@@ -848,10 +860,10 @@ function DataTable({
                         )
                       }
                     >
-                      <Download className="size-4" /> Descargar
-                    </Button>
+                      <Download className="size-4" />
+                    </TableActionButton>
                   )}
-                </div>
+                </TableActions>
               </td>
             </tr>
           ))}
