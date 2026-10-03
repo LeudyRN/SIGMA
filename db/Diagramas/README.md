@@ -8,7 +8,7 @@ Abre **[index.html](index.html)** para explorar los diagramas. No requiere servi
 
 | Archivo o carpeta | Contenido |
 | --- | --- |
-| [Atlas PDF](SIGMA_Diagramas_ER.pdf) | Portada con índice navegable y ocho láminas de detalle; texto y líneas vectoriales. |
+| [Anexo PDF](SIGMA_Diagramas_ER.pdf) | Presentación e índice navegable y 43 hojas de diagramas en formato vertical, igual al monográfico, y escala de grises; texto y líneas vectoriales. |
 | [Modelo global SVG](svg/00-modelo-global.svg) | Las 56 tablas y las 87 relaciones, mostrando solamente atributos PK/FK para facilitar la navegación. |
 | [svg](svg/) | Nueve diagramas vectoriales para ampliar sin pérdida de calidad. |
 | [png](png/) | Los mismos nueve diagramas en imágenes de alta resolución. |
@@ -44,11 +44,39 @@ Los campos de seguimiento que no tienen una FK física no generan líneas por in
 
 ## Impresión y edición
 
-El atlas usa formatos A2 y A1 según la densidad de cada lámina, con texto de al menos 8 puntos a tamaño real. Para imprimir, respeta el formato indicado en el encabezado; ajustar una lámina completa a A4 reduce su legibilidad. Para consultas en pantalla y presentaciones, usa SVG y amplía el área de interés. El mapa global está pensado para exploración con zoom; los detalles contienen el inventario completo de atributos.
+El PDF usa **hojas verticales de 596 × 842 puntos**, las dimensiones exactas
+del PDF del monográfico de referencia (A4, aproximadamente 210 × 297 mm),
+con márgenes de **2,5 cm** y únicamente blanco, negro y tonos grises. Incluye
+la presentación **Anexo D: Diagramas entidad-relación**, un índice y 43 hojas
+de diagramas. Los párrafos e identificadores de diagramas usan Arial de 11 puntos;
+la numeración está en la esquina superior derecha, como en el monográfico.
+Las ocho láminas originales se distribuyen en varias hojas para conservar todos
+los atributos y relaciones. Las cajas de referencia se simplifican a nombre,
+dominio y claves para respetar el ancho vertical. Los nombres, tipos y claves
+siguen siendo vectoriales; el menor texto del diagrama supera los 7 puntos.
+Imprime a tamaño real, al 100 %. El índice y los marcadores permiten navegar por dominio.
+Los SVG y PNG originales siguen disponibles para explorar cada dominio completo
+con zoom; su estilo es independiente de esta edición del PDF.
 
 Los DOT pueden editarse con Graphviz. Para cambios permanentes en el estilo o distribución, modifica `fuentes/generar-diagramas.py`; regenerar sobrescribe los DOT y los documentos generados.
 
 ## Regeneración
+
+Para regenerar el anexo vertical en grises a partir de los metadatos del atlas:
+
+```powershell
+python db/Diagramas/fuentes/generar-a4.py
+```
+
+Usa las mismas dependencias de Python y Graphviz WASM indicadas abajo. Produce
+`output/pdf/SIGMA_Diagramas_ER_Anexo_Grises.pdf` y actualiza el PDF de esta carpeta.
+Conserva la fecha de la captura del modelo; el cambio de diseño no actualiza el
+esquema ni consulta la base. Verifica cobertura de tablas, atributos y relaciones,
+ausencia de solapamientos entre tablas, tamaño de hoja, escala de grises y contenido
+dentro de los márgenes. Los renders y el informe quedan en
+`tmp/pdfs/sigma-anexo/`. La numeración independiente empieza en 1. Para continuar
+la numeración al integrarlo, añade `--start-page NUMERO`; el índice también
+se ajusta a ese número.
 
 Desde la raíz del repositorio, con Node.js 22 o posterior y Python 3.10 o posterior:
 
@@ -71,4 +99,9 @@ La captura solo consulta `information_schema`: no lee filas de negocio ni modifi
 
 ## Verificación de esta entrega
 
-`fuentes/cobertura.json` registra el inventario y SHA-256 del esquema Prisma. `fuentes/validacion.json` registra la cobertura, el número de nodos y relaciones por lámina, la ausencia de solapamiento entre tablas y los tamaños mínimos de texto del PDF. Además, se revisaron visualmente las nueve páginas renderizadas y las salidas de imagen. Los diagramas UML anteriores se sustituyen por estos diagramas ER.
+`fuentes/cobertura.json` registra el inventario y SHA-256 del esquema Prisma.
+`fuentes/validacion.json` registra la cobertura y distribución de las láminas originales.
+La edición vertical tiene su informe de cobertura y formato en
+`tmp/pdfs/sigma-anexo/validation.json`. Se revisaron visualmente las 44 páginas
+renderizadas, incluida la hoja más densa y la presentación renderizada con Poppler.
+Los diagramas UML anteriores se sustituyen por estos diagramas ER.

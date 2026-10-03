@@ -6,6 +6,7 @@ import { Eye, RefreshCw, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { EntityDialog } from '@/components/ui/entity-dialog';
 import { Pagination } from '@/components/ui/pagination';
+import { TableActionButton, TableActions } from '@/components/ui/table-actions';
 import { apiJson } from '@/lib/api';
 import { useAuthStore } from '@/store/auth-store';
 
@@ -267,15 +268,15 @@ export function AuditPanel() {
                       </td>
                       <td className="px-4 py-4">{resultLabel(event)}</td>
                       <td className="px-4 py-4 whitespace-nowrap">{event.ip ?? 'No registrada'}</td>
-                      <td className="px-4 py-3">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          aria-label={`Ver evento ${event.id}`}
-                          onClick={() => setSelected(event)}
-                        >
-                          <Eye className="size-4" /> Ver
-                        </Button>
+                      <td className="w-px px-4 py-3 align-middle whitespace-nowrap">
+                        <TableActions>
+                          <TableActionButton
+                            label={`Ver evento ${event.id}`}
+                            onClick={() => setSelected(event)}
+                          >
+                            <Eye className="size-4" />
+                          </TableActionButton>
+                        </TableActions>
                       </td>
                     </tr>
                   ))}
